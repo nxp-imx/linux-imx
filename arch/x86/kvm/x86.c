@@ -367,6 +367,9 @@ static const u32 msrs_to_save_base[] = {
 	MSR_IA32_U_CET, MSR_IA32_S_CET,
 	MSR_IA32_PL0_SSP, MSR_IA32_PL1_SSP, MSR_IA32_PL2_SSP,
 	MSR_IA32_PL3_SSP, MSR_IA32_INT_SSP_TAB,
+	MSR_IA32_DEBUGCTLMSR,
+	MSR_IA32_LASTBRANCHFROMIP, MSR_IA32_LASTBRANCHTOIP,
+	MSR_IA32_LASTINTFROMIP, MSR_IA32_LASTINTTOIP,
 };
 
 static const u32 msrs_to_save_pmu[] = {
@@ -893,9 +896,6 @@ static void kvm_multiple_exception(struct kvm_vcpu *vcpu, unsigned int nr,
 		vcpu->arch.exception.error_code = error_code;
 		vcpu->arch.exception.has_payload = has_payload;
 		vcpu->arch.exception.payload = payload;
-		if (!is_guest_mode(vcpu))
-			kvm_deliver_exception_payload(vcpu,
-						      &vcpu->arch.exception);
 		return;
 	}
 
@@ -5825,18 +5825,8 @@ static int kvm_vcpu_ioctl_x86_set_mce(struct kvm_vcpu *vcpu,
 	return 0;
 }
 
-static void kvm_vcpu_ioctl_x86_get_vcpu_events(struct kvm_vcpu *vcpu,
-					       struct kvm_vcpu_events *events)
+static struct kvm_queued_exception *kvm_get_exception_to_save(struct kvm_vcpu *vcpu)
 {
-	struct kvm_queued_exception *ex;
-
-	process_nmi(vcpu);
-
-#ifdef CONFIG_KVM_SMM
-	if (kvm_check_request(KVM_REQ_SMI, vcpu))
-		process_smi(vcpu);
-#endif
-
 	/*
 	 * KVM's ABI only allows for one exception to be migrated.  Luckily,
 	 * the only time there can be two queued exceptions is if there's a
@@ -5847,21 +5837,46 @@ static void kvm_vcpu_ioctl_x86_get_vcpu_events(struct kvm_vcpu *vcpu,
 	if (vcpu->arch.exception_vmexit.pending &&
 	    !vcpu->arch.exception.pending &&
 	    !vcpu->arch.exception.injected)
-		ex = &vcpu->arch.exception_vmexit;
-	else
-		ex = &vcpu->arch.exception;
+		return &vcpu->arch.exception_vmexit;
+
+	return &vcpu->arch.exception;
+}
+
+static void kvm_handle_exception_payload_quirk(struct kvm_vcpu *vcpu)
+{
+	struct kvm_queued_exception *ex = kvm_get_exception_to_save(vcpu);
 
 	/*
-	 * In guest mode, payload delivery should be deferred if the exception
-	 * will be intercepted by L1, e.g. KVM should not modifying CR2 if L1
-	 * intercepts #PF, ditto for DR6 and #DBs.  If the per-VM capability,
-	 * KVM_CAP_EXCEPTION_PAYLOAD, is not set, userspace may or may not
-	 * propagate the payload and so it cannot be safely deferred.  Deliver
-	 * the payload if the capability hasn't been requested.
+	 * If KVM_CAP_EXCEPTION_PAYLOAD is disabled, then (prematurely) deliver
+	 * the pending exception payload when userspace saves *any* vCPU state
+	 * that interacts with exception payloads to avoid breaking userspace.
+	 *
+	 * Architecturally, KVM must not deliver an exception payload until the
+	 * exception is actually injected, e.g. to avoid losing pending #DB
+	 * information (which VMX tracks in the VMCS), and to avoid clobbering
+	 * state if the exception is never injected for whatever reason.  But
+	 * if KVM_CAP_EXCEPTION_PAYLOAD isn't enabled, then userspace may or
+	 * may not propagate the payload across save+restore, and so KVM can't
+	 * safely defer delivery of the payload.
 	 */
 	if (!vcpu->kvm->arch.exception_payload_enabled &&
 	    ex->pending && ex->has_payload)
 		kvm_deliver_exception_payload(vcpu, ex);
+}
+
+static void kvm_vcpu_ioctl_x86_get_vcpu_events(struct kvm_vcpu *vcpu,
+					       struct kvm_vcpu_events *events)
+{
+	struct kvm_queued_exception *ex = kvm_get_exception_to_save(vcpu);
+
+	process_nmi(vcpu);
+
+#ifdef CONFIG_KVM_SMM
+	if (kvm_check_request(KVM_REQ_SMI, vcpu))
+		process_smi(vcpu);
+#endif
+
+	kvm_handle_exception_payload_quirk(vcpu);
 
 	memset(events, 0, sizeof(*events));
 
@@ -6039,6 +6054,8 @@ static int kvm_vcpu_ioctl_x86_get_debugregs(struct kvm_vcpu *vcpu,
 	if (vcpu->kvm->arch.has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
+
+	kvm_handle_exception_payload_quirk(vcpu);
 
 	memset(dbgregs, 0, sizeof(*dbgregs));
 
@@ -10744,8 +10761,9 @@ static int kvm_pkvm_hypercall(struct kvm_vcpu *vcpu)
 		break;
 	}
 	case PKVM_GHC_SHARE_MEM:
+	case PKVM_GHC_UNSHARE_MEM:
 		/*
-		 * The only case when pKVM forwards this hypercall to the host
+		 * The only case when pKVM forwards these hypercalls to the host
 		 * is when it asks the host to refill the memcache with the
 		 * needed amount of pages.
 		 */
@@ -12573,6 +12591,8 @@ static void __get_sregs_common(struct kvm_vcpu *vcpu, struct kvm_sregs *sregs)
 
 	if (vcpu->arch.guest_state_protected)
 		goto skip_protected_regs;
+
+	kvm_handle_exception_payload_quirk(vcpu);
 
 	kvm_get_segment(vcpu, &sregs->cs, VCPU_SREG_CS);
 	kvm_get_segment(vcpu, &sregs->ds, VCPU_SREG_DS);
@@ -15114,15 +15134,14 @@ int pkvm_emulate_hypercall(struct kvm_vcpu *vcpu)
 
 	switch (nr) {
 	case PKVM_GHC_SHARE_MEM:
+	case PKVM_GHC_UNSHARE_MEM:
 		pkvm_guest_mmu_refill_memcache(pkvm_vcpu);
 
-		/*
-		 * May need to allocate additional pages for guest page table
-		 * in order to split a huge mapping into smaller ones. Assume
-		 * the worst case.
-		 */
-		min_pages = __pkvm_pgtable_max_pages(a1 >> PAGE_SHIFT);
-		if (vcpu->arch.pkvm.guest_mmu_memcache.count < min_pages) {
+		if (nr == PKVM_GHC_SHARE_MEM)
+			ret = pkvm_guest_share_host(vcpu, a0, a1, &min_pages);
+		else
+			ret = pkvm_guest_unshare_host(vcpu, a0, a1, &min_pages);
+		if (ret == -E2BIG) {
 			/*
 			 * If not enough pages in the memcache, forward request
 			 * to the host for refilling the memcache with the needed
@@ -15132,11 +15151,6 @@ int pkvm_emulate_hypercall(struct kvm_vcpu *vcpu)
 			pkvm_vcpu->shared_vcpu->arch.pkvm.req_param = min_pages;
 			return 0;
 		}
-
-		ret = pkvm_guest_share_host(vcpu, a0, a1);
-		break;
-	case PKVM_GHC_UNSHARE_MEM:
-		ret = pkvm_guest_unshare_host(vcpu, a0, a1);
 		break;
 	case PKVM_GHC_IOREAD:
 	case PKVM_GHC_IOWRITE:

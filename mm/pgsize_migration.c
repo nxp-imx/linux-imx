@@ -223,36 +223,29 @@ static inline bool linker_ctx(void)
 	struct vm_area_struct *vma;
 	struct file *file;
 
-	if (!regs)
+	/*
+	 * Called from madvise_dontneed_single_vma() with the target VMA
+	 * read-locked (MADVISE_VMA_READ_LOCK).  We MUST NOT take mmap_lock
+	 * here: that inverts the mmap_lock -> per-VMA-lock order and ABBA-
+	 * deadlocks against a concurrent vma_start_write() on the target
+	 * may occur.
+	 *
+	 * io_wq workers / kthreads have zeroed pt_regs (pc==0) and are never
+	 * the dynamic linker, so reject them up front instead of falling back
+	 * to mmap_read_lock().
+	 */
+	if (!regs || current->flags & (PF_IO_WORKER | PF_KTHREAD) ||
+	    !user_mode(regs))
 		return false;
 
 	vma = lock_vma_under_rcu(mm, instruction_pointer(regs));
 
 	/*
-	 * lock_vma_under_rcu() is a try-lock that can fail if the
-	 * VMA is already locked for modification.
-	 *
-	 * Fallback to finding the vma under mmap read lock.
+	 * Conservatively reject; only affects /proc/<pid>/[s]maps emulated
+	 * output.
 	 */
-	if (!vma) {
-		mmap_read_lock(mm);
-
-		vma = find_vma(mm, instruction_pointer(regs));
-
-		/* Current execution context, the VMA must be present */
-		BUG_ON(!vma);
-
-		/*
-		 * We cannot use vma_start_read() as it may fail due to
-		 * false locked (see comment in vma_start_read()). We
-		 * can avoid that by using vma_start_read_locked under
-		 * mmap_lock, which guarantees that nobody can lock the
-		 * vma for write (vma_start_write()) under us.
-		 */
-		BUG_ON(!vma_start_read_locked(vma));
-
-		mmap_read_unlock(mm);
-	}
+	if (!vma)
+		return false;
 
 	file = vma->vm_file;
 	if (!file)

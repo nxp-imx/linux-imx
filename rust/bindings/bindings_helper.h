@@ -50,6 +50,7 @@
 #include <linux/cred.h>
 #include <linux/debugfs.h>
 #include <linux/device/faux.h>
+#include <linux/dma-buf.h>
 #include <linux/dma-direction.h>
 #include <linux/dma-mapping.h>
 #include <linux/errname.h>
@@ -78,6 +79,7 @@
 #include <linux/property.h>
 #include <linux/random.h>
 #include <linux/refcount.h>
+#include <linux/reset.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sched.h>
 #include <linux/security.h>

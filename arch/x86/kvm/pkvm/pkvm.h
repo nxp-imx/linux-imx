@@ -62,6 +62,7 @@ struct pkvm_vm {
 	pkvm_spinlock_t lock;
 	struct pkvm_vcpu *vcpus[KVM_MAX_VCPUS];
 	atomic_t vcpu_refs[KVM_MAX_VCPUS];
+	bool postponed_setup_done;
 	/* Guest MMU (stage-2) page table managed by the hypervisor */
 	struct pkvm_pgtable mmu;
 	struct pkvm_pool mmu_pool;
@@ -86,17 +87,17 @@ struct pkvm_vm {
 /**
  * for_each_pkvm_guest_vcpu - iterate over non-NULL guest vCPUs
  * @i: loop counter
- * @vcpu: struct kvm_vcpu pointer, assigned by macro and guaranteed non-NULL.
+ * @_vcpu: struct kvm_vcpu pointer, assigned by macro and guaranteed non-NULL.
  * @vm: struct pkvm_vm pointer, evaluated multiple times. Don't use expressions.
  *
  * Iterates over all vCPUs in the VM, automatically skipping if vCPU pointer is
  * NULL.
  */
-#define for_each_pkvm_guest_vcpu(i, vcpu, vm)							\
+#define for_each_pkvm_guest_vcpu(i, _vcpu, vm)							\
 	for ((i) = 0; (i) < (vm)->kvm.created_vcpus &&						\
-		      ({ (vcpu) = (vm)->vcpus[(i)] ?						\
+		      ({ (_vcpu) = (vm)->vcpus[(i)] ?						\
 				  &(vm)->vcpus[(i)]->vcpu : NULL; true; }); (i)++)		\
-		if (!(vcpu))									\
+		if (!(_vcpu))									\
 			continue;								\
 		else
 

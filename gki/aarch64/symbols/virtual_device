@@ -1531,3 +1531,9 @@
 # preserved by --additions-only
   __drm_debug_trace
   __drm_printfn_trace
+
+# required by pkvm_iommu_temp.ko
+  __pkvm_load_el2_module
+  kvm_iommu_register_driver
+  kvm_iommu_register_hyp_ops
+

@@ -1139,6 +1139,7 @@
   genphy_c45_pma_resume
   genphy_c45_pma_setup_forced
   genphy_c45_pma_suspend
+  genphy_c45_read_eee_abilities
   genphy_c45_read_lpa
   genphy_c45_read_status
   __genphy_config_aneg

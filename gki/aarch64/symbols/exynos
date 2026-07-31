@@ -821,7 +821,6 @@
   skb_realloc_headroom
   skb_trim
   sk_skb_reason_drop
-  smpboot_unregister_percpu_thread
   smp_call_function
   smp_call_function_single
   smp_call_function_single_async

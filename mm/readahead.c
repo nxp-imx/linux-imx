@@ -139,6 +139,9 @@
 
 #include "internal.h"
 
+EXPORT_TRACEPOINT_SYMBOL_GPL(page_cache_sync_ra);
+EXPORT_TRACEPOINT_SYMBOL_GPL(page_cache_async_ra);
+
 /*
  * Initialise a struct file's readahead state.  Assumes that the caller has
  * memset *ra to zero.

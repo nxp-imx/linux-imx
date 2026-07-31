@@ -36,7 +36,17 @@ int pkvm_host_ept_level(void)
 
 static void *host_ept_zalloc_page(struct pkvm_memcache *mc)
 {
-	return pkvm_alloc_pages(&host_ept_pool, 0);
+	void *page = pkvm_alloc_pages(&host_ept_pool, 0);
+
+	/*
+	 * TODO: no need to flush cache if none of the
+	 * devices behind non-coherent IOMMUs are configured
+	 * for passthrough mode.
+	 */
+	if (page && !pkvm_iommu_paging_structure_coherency())
+		clflush_cache_range(page, PAGE_SIZE);
+
+	return page;
 }
 
 static void host_ept_get_page(void *vaddr)

@@ -654,6 +654,11 @@ int pkvm_pgtable_init(struct pkvm_pgtable *pgt,
  * continue to the next entry. If the callback returns a non-zero, the walk will
  * be terminated immediately and return that value.
  *
+ * The range [@vaddr, @vaddr + @size) must be within [0, 2^N) where N is the
+ * address width in bits, e.g. 48 or 57. If there are extra upper bits set
+ * (e.g. due to sign extension in canonical addressing), those bits must be
+ * cleared by the caller.
+ *
  * Return: 0 on success, negative error code on failure.
  */
 int pkvm_pgtable_walk(struct pkvm_pgtable *pgt, unsigned long vaddr,
@@ -671,7 +676,7 @@ int pkvm_pgtable_walk(struct pkvm_pgtable *pgt, unsigned long vaddr,
 	int ret;
 
 	if (!pgt->root_pa || vaddr + size <= vaddr || data.end <= data.start ||
-	    data.end - data.start > pkvm_pgtable_max_size(pgt))
+	    data.end > pkvm_pgtable_max_size(pgt))
 		return -EINVAL;
 
 	ret = _pgtable_walk(&data, __pkvm_va(pgt->root_pa), pgt->cap.level);

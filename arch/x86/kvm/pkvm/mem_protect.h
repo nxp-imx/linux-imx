@@ -94,9 +94,9 @@ int pkvm_host_unshare_guest(struct kvm *kvm, unsigned long gpa,
 int pkvm_host_test_clear_young_guest(struct kvm *kvm, unsigned long gpa,
 				     unsigned long size, bool mkold);
 int pkvm_guest_share_host(struct kvm_vcpu *vcpu, unsigned long gpa,
-			  unsigned long size);
+			  unsigned long size, unsigned long *need_mc_pages);
 int pkvm_guest_unshare_host(struct kvm_vcpu *vcpu, unsigned long gpa,
-			    unsigned long size);
+			    unsigned long size, unsigned long *need_mc_pages);
 int pkvm_host_use_dma(unsigned long phys, unsigned long size);
 void pkvm_host_unuse_dma(unsigned long phys, unsigned long size);
 

@@ -57,6 +57,7 @@
 #include "cred.c"
 #include "device.c"
 #include "dma.c"
+#include "dma-buf.c"
 #include "drm.c"
 #include "err.c"
 #include "irq.c"

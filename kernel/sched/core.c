@@ -5457,7 +5457,7 @@ void sched_post_fork(struct task_struct *p)
 	scx_post_fork(p);
 }
 
-unsigned long to_ratio(u64 period, u64 runtime)
+u64 to_ratio(u64 period, u64 runtime)
 {
 	if (runtime == RUNTIME_INF)
 		return BW_UNIT;
@@ -7383,6 +7383,7 @@ static void proxy_enqueue_on_owner(struct rq *rq, struct task_struct *owner,
 	 * elsewhere before it's fully extricated from its old rq.
 	 */
 	list_add(&p->blocked_node, &owner->blocked_head);
+	proxy_resched_idle(rq);
 	block_task(rq, p, READ_ONCE(p->__state));
 }
 
@@ -7527,8 +7528,14 @@ find_proxy_task(struct rq *rq, struct task_struct *donor, struct rq_flags *rf)
 			WARN_ON(owner == p);
 			raw_spin_unlock(&p->blocked_lock);
 			raw_spin_lock(&owner->blocked_lock);
-			proxy_resched_idle(rq);
-			proxy_enqueue_on_owner(rq, owner, p);
+			/*
+			 * Before actually adding to the sleeping owner, double check
+			 * we didn't race with an owner wakeup before grabbing the
+			 * owner's blocked_lock.
+			 */
+			if (!READ_ONCE(owner->on_rq) || owner->se.sched_delayed)
+				proxy_enqueue_on_owner(rq, owner, p);
+
 			raw_spin_unlock(&owner->blocked_lock);
 			raw_spin_lock(&p->blocked_lock);
 

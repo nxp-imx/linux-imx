@@ -643,7 +643,7 @@ static int __host_unshare_guest(unsigned long gpa, unsigned long hpa,
 	int ret;
 
 	ret = pkvm_pgtable_unmap(&pkvm_vm->mmu, gpa, hpa, size);
-	if (WARN_ON_ONCE(ret))
+	if (ret)
 		return ret;
 
 	for_each_pkvm_page(page, hpa, size) {
@@ -663,13 +663,10 @@ static int __guest_share_host(unsigned long gpa, unsigned long hpa,
 {
 	struct kvm_vcpu *vcpu = arg;
 	struct pkvm_vm *pkvm_vm = to_pkvm_vcpu(vcpu)->pkvm_vm;
-	int ret;
 
 	prot = pkvm_pte_set_pgstate(prot, &pkvm_vm->mmu, PKVM_PAGE_SHARED_OWNED);
-	ret = pkvm_pgtable_map(&pkvm_vm->mmu, gpa, hpa, size, prot,
-			       &vcpu->arch.pkvm.guest_mmu_memcache);
-	if (ret)
-		return ret;
+	BUG_ON(pkvm_pgtable_map(&pkvm_vm->mmu, gpa, hpa, size, prot,
+				&vcpu->arch.pkvm.guest_mmu_memcache));
 
 	BUG_ON(pkvm_pgtable_map(&host_mmu, hpa, hpa, size,
 				host_mmu_pte_prot(true, false), NULL));
@@ -688,7 +685,10 @@ static int __guest_unshare_host(unsigned long gpa, unsigned long hpa,
 	set_host_mem_pgstate(hpa, size, PKVM_PAGE_NONE, PKVM_ID_GUEST);
 
 	prot = pkvm_pte_set_pgstate(prot, &pkvm_vm->mmu, PKVM_PAGE_OWNED);
-	return pkvm_pgtable_map(&pkvm_vm->mmu, gpa, hpa, size, prot, NULL);
+	BUG_ON(pkvm_pgtable_map(&pkvm_vm->mmu, gpa, hpa, size, prot,
+				&vcpu->arch.pkvm.guest_mmu_memcache));
+
+	return 0;
 }
 
 static bool gpa_range_overlaps_pvmfw(struct kvm *kvm,
@@ -722,6 +722,20 @@ static bool is_valid_addr_range(unsigned long addr, unsigned long size, bool pag
 		return false;
 
 	return page_aligned ? PAGE_ALIGNED(addr) && PAGE_ALIGNED(size) : true;
+}
+
+static int need_memcache_topup(struct pkvm_memcache *mc, unsigned long size,
+			       unsigned long *need_pages)
+{
+	/* Assume the worst case. */
+	unsigned long min_pages = __pkvm_pgtable_max_pages(size >> PAGE_SHIFT);
+
+	if (mc->count < min_pages) {
+		*need_pages = min_pages;
+		return -E2BIG;
+	}
+
+	return 0;
 }
 
 int pkvm_hyp_mmu_init(void *pool_base, unsigned long pool_pages)
@@ -784,6 +798,10 @@ int pkvm_hyp_mmu_finalize(hyp_mmu_finalize_fn_t fn)
 int pkvm_hyp_mmu_map(unsigned long vaddr, unsigned long phys,
 		     unsigned long size, u64 prot)
 {
+	if (WARN_ON(!__is_canonical_address(vaddr, boot_cpu_data.x86_virt_bits)))
+		return -EINVAL;
+	vaddr &= (1ULL << boot_cpu_data.x86_virt_bits) - 1;
+
 	return pkvm_pgtable_map(&hyp_mmu, vaddr, phys, size, prot, NULL);
 }
 
@@ -1395,6 +1413,10 @@ int pkvm_host_donate_guest(struct kvm_vcpu *vcpu, unsigned long gpa,
 	if (WARN_ON_ONCE(!pkvm_is_protected_vcpu(vcpu)))
 		return -EPERM;
 
+	/* If the VM is not finalized yet, we don't know if we need to load pvmfw. */
+	if (!smp_load_acquire(&pkvm_vm->kvm.arch.pkvm.finalized))
+		return -EPERM;
+
 	pkvm_host_mmu_lock();
 	pkvm_guest_mmu_lock(pkvm_vm);
 
@@ -1619,6 +1641,7 @@ int pkvm_host_test_clear_young_guest(struct kvm *kvm, unsigned long gpa,
  * @vcpu:	Guest's vCPU in whose context the sharing is requested.
  * @gpa:	Guest physical address of the memory region to share.
  * @size:	Size of the memory region to share.
+ * @need_mc_pages: To return the required number of pages in memcache.
  *
  * Changes the ownership state of the pages mapped by the GPA range [@gpa,
  * @gpa + @size) in the guest mmu from exclusively owned by the guest to shared
@@ -1627,10 +1650,16 @@ int pkvm_host_test_clear_young_guest(struct kvm *kvm, unsigned long gpa,
  * previously donated to this guest. The @gpa and @size are required to be
  * PAGE_SIZE aligned.
  *
+ * If the return value is -E2BIG, it indicates that there are not enough pages
+ * in the guest mmu memcache, as pkvm_guest_share_host() may need to allocate
+ * additional pages for guest page table in order to split a huge mapping into
+ * smaller ones. In this case the required number of pages is returned in
+ * @need_mc_pages. Otherwise @need_mc_pages is not updated.
+ *
  * Returns: 0 on success, or a negative error code on failure.
  */
 int pkvm_guest_share_host(struct kvm_vcpu *vcpu, unsigned long gpa,
-			  unsigned long size)
+			  unsigned long size, unsigned long *need_mc_pages)
 {
 	struct pkvm_vm *pkvm_vm = to_pkvm_vcpu(vcpu)->pkvm_vm;
 	int ret;
@@ -1646,13 +1675,13 @@ int pkvm_guest_share_host(struct kvm_vcpu *vcpu, unsigned long gpa,
 	if (ret)
 		goto unlock;
 
-	ret = for_each_contig_range(&pkvm_vm->mmu, gpa, size,
-				    __guest_share_host, vcpu);
-	if (ret) {
-		/* Unshare already shared pages, if any. */
-		BUG_ON(for_each_contig_range(&pkvm_vm->mmu, gpa, size,
-					     __guest_unshare_host, vcpu));
-	}
+	ret = need_memcache_topup(&vcpu->arch.pkvm.guest_mmu_memcache,
+				  size, need_mc_pages);
+	if (ret)
+		goto unlock;
+
+	for_each_contig_range(&pkvm_vm->mmu, gpa, size, __guest_share_host,
+			      vcpu);
 unlock:
 	pkvm_guest_mmu_unlock(pkvm_vm);
 	pkvm_host_mmu_unlock();
@@ -1665,6 +1694,7 @@ unlock:
  * @vcpu:	Guest's vCPU in whose context the unsharing is requested.
  * @gpa:	Guest physical address of the memory region to unshare.
  * @size:	Size of the memory region to unshare.
+ * @need_mc_pages: To return the required number of pages in memcache.
  *
  * Changes the ownership state of the pages mapped by the GPA range [@gpa,
  * @gpa + @size) in the guest mmu from shared with the host to exclusively
@@ -1673,10 +1703,16 @@ unlock:
  * previously donated to this guest and then shared by it with the host.
  * The @gpa and @size are required to be PAGE_SIZE aligned.
  *
+ * If the return value is -E2BIG, it indicates that there are not enough pages
+ * in the guest mmu memcache, as pkvm_guest_unshare_host() may need to allocate
+ * additional pages for guest page table in order to split a huge mapping into
+ * smaller ones. In this case the required number of pages is returned in
+ * @need_mc_pages. Otherwise @need_mc_pages is not updated.
+ *
  * Returns: 0 on success, or a negative error code on failure.
  */
 int pkvm_guest_unshare_host(struct kvm_vcpu *vcpu, unsigned long gpa,
-			    unsigned long size)
+			    unsigned long size, unsigned long *need_mc_pages)
 {
 	struct pkvm_vm *pkvm_vm = to_pkvm_vcpu(vcpu)->pkvm_vm;
 	int ret;
@@ -1692,9 +1728,13 @@ int pkvm_guest_unshare_host(struct kvm_vcpu *vcpu, unsigned long gpa,
 	if (ret)
 		goto unlock;
 
-	ret = for_each_contig_range(&pkvm_vm->mmu, gpa, size,
-				    __guest_unshare_host, vcpu);
-	BUG_ON(ret);
+	ret = need_memcache_topup(&vcpu->arch.pkvm.guest_mmu_memcache,
+				  size, need_mc_pages);
+	if (ret)
+		goto unlock;
+
+	for_each_contig_range(&pkvm_vm->mmu, gpa, size, __guest_unshare_host,
+			      vcpu);
 unlock:
 	pkvm_guest_mmu_unlock(pkvm_vm);
 	pkvm_host_mmu_unlock();

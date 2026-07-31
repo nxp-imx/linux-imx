@@ -224,6 +224,7 @@ filegroup(
     srcs = [
         # keep sorted
         "gki/aarch64/symbols/allwinner",
+        "gki/aarch64/symbols/asr",
         "gki/aarch64/symbols/db845c",
         "gki/aarch64/symbols/desktop",
         "gki/aarch64/symbols/exynos",

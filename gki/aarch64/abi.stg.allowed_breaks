@@ -15,3 +15,7 @@ type 'struct arch_tlbflush_unmap_batch' changed
 type 'struct ufshcd_tx_eq_params' changed
   member 'union { bool from_dt; unsigned char __kabi_ignored1; }' was added
 
+type 'struct task_struct' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { struct { unsigned int user_dumpable:1; }; struct { u64 __kabi_reserved1; }; union { }; }' was added
+
