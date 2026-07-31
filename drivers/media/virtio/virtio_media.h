@@ -225,7 +225,9 @@ struct virtio_media_mem_ops {
 };
 
 /* virtio_media_xen.c */
+#if IS_ENABLED(CONFIG_XEN)
 extern const struct virtio_media_mem_ops virtio_media_xen_mem_ops;
+#endif
 
 /**
  * struct virtio_media - Virtio-media device.

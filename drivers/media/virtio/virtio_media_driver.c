@@ -2415,8 +2415,10 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 	vv->virtio_dev = virtio_dev;
 	virtio_dev->priv = vv;
 
-	/* Memory backend (see virtio_media_xen.c). */
+	/* Memory backend: use Xen grant-map when running as a Xen guest. */
+#if IS_ENABLED(CONFIG_XEN)
 	vv->mem_ops = &virtio_media_xen_mem_ops;
+#endif
 
 	/* Allocator for V4L2_MEMORY_DMABUF resource ids (ids start at 1). */
 	ida_init(&vv->resource_ida);

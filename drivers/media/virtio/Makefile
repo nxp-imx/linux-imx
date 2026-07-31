@@ -3,7 +3,8 @@
 # Makefile for the virtio-media device driver.
 
 virtio-media-objs := scatterlist_builder.o virtio_media_ioctls.o \
-			virtio_media_driver.o virtio_media_xen.o
+			virtio_media_driver.o
+virtio-media-$(CONFIG_XEN) += virtio_media_xen.o
 virtio-media-$(CONFIG_DEBUG_FS) += virtio_media_debug.o
 
 obj-$(CONFIG_MEDIA_VIRTIO) += virtio-media.o
