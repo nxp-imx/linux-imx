@@ -132,7 +132,7 @@ config MEDIA_PLATFORM_SUPPORT
 
 config MEDIA_VIRTIO
 	tristate "Virtio-media Driver"
-	depends on VIRTIO && VIDEO_DEV && 64BIT && (X86 || (ARM && CPU_LITTLE_ENDIAN))
+	depends on VIRTIO && VIDEO_DEV && 64BIT && (X86 || ARM64 || (ARM && CPU_LITTLE_ENDIAN))
 	select VIDEOBUF2_CORE
 	select VIDEOBUF2_MEMOPS
 	select VIRTIO_DMA_SHARED_BUFFER
