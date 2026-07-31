@@ -12,8 +12,10 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/gpio/consumer.h>
+#include <linux/of.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <sound/pcm_params.h>
@@ -44,6 +46,7 @@ struct cs42xx8_priv {
 
 	bool slave_mode[2];
 	bool is_tdm;
+	bool is_rpmsg_i2c;
 	unsigned long sysclk;
 	u32 tx_channels;
 	struct gpio_desc *gpiod_reset;
@@ -538,6 +541,7 @@ EXPORT_SYMBOL_GPL(cs42888_data);
 int cs42xx8_probe(struct device *dev, struct regmap *regmap, struct cs42xx8_driver_data *drvdata)
 {
 	struct cs42xx8_priv *cs42xx8;
+	struct i2c_client *client;
 	int ret, val, i;
 
 	if (IS_ERR(regmap)) {
@@ -555,6 +559,11 @@ int cs42xx8_probe(struct device *dev, struct regmap *regmap, struct cs42xx8_driv
 	cs42xx8->regmap = regmap;
 
 	cs42xx8->drvdata = drvdata;
+
+	client = i2c_verify_client(dev);
+	cs42xx8->is_rpmsg_i2c = client && client->adapter->dev.of_node &&
+		of_device_is_compatible(client->adapter->dev.of_node,
+					"fsl,i2c-rpbus");
 
 	cs42xx8->gpiod_reset = devm_gpiod_get_optional(dev, "reset",
 							GPIOD_OUT_HIGH);
@@ -654,7 +663,7 @@ static int cs42xx8_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	if (!cs42xx8->drvdata->is_rpmsg_i2c) {
+	if (!cs42xx8->is_rpmsg_i2c) {
 		gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 0);
 	}
 
@@ -698,7 +707,7 @@ static int cs42xx8_runtime_suspend(struct device *dev)
 			       cs42xx8->supplies);
 
 	/* In rpmsg i2c cases, don't reset codec at runtime suspend */
-	if (!cs42xx8->drvdata->is_rpmsg_i2c)
+	if (!cs42xx8->is_rpmsg_i2c)
 		gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 1);
 
 	clk_disable_unprepare(cs42xx8->clk);

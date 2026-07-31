@@ -28,11 +28,6 @@ static int cs42xx8_i2c_probe(struct i2c_client *i2c)
 		return dev_err_probe(&i2c->dev, -EINVAL,
 				     "failed to find driver data\n");
 
-	if (i2c->adapter->dev.of_node &&
-	    of_device_is_compatible(i2c->adapter->dev.of_node, "fsl,i2c-rpbus")) {
-		drvdata->is_rpmsg_i2c = true;
-	}
-
 	ret = cs42xx8_probe(&i2c->dev,
 		devm_regmap_init_i2c(i2c, &cs42xx8_regmap_config), drvdata);
 	if (ret)
