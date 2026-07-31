@@ -58,6 +58,7 @@
   __bitmap_replace
   __bitmap_set
   __bitmap_subset
+  bitmap_to_arr32
   __bitmap_weight
   __bitmap_xor
   bitmap_zalloc
@@ -702,6 +703,7 @@
   drm_atomic_helper_commit_modeset_disables
   drm_atomic_helper_commit_modeset_enables
   drm_atomic_helper_commit_planes
+  drm_atomic_helper_commit_tail
   drm_atomic_helper_commit_tail_rpm
   drm_atomic_helper_connector_destroy_state
   drm_atomic_helper_connector_duplicate_state
@@ -759,6 +761,7 @@
   drm_client_register
   drm_client_release
   drm_client_rotation
+  drm_color_ctm_s31_32_to_qm_n
   drm_compat_ioctl
   drm_connector_atomic_hdr_metadata_equal
   drm_connector_attach_colorspace_property
@@ -784,6 +787,7 @@
   drm_crtc_cleanup
   __drm_crtc_commit_free
   drm_crtc_commit_wait
+  drm_crtc_enable_color_mgmt
   drm_crtc_handle_vblank
   drm_crtc_init_with_planes
   drm_crtc_send_vblank_event
@@ -923,6 +927,7 @@
   drm_modeset_acquire_init
   drm_modeset_backoff
   drm_mode_set_config_internal
+  drm_mode_set_crtcinfo
   drm_modeset_drop_locks
   drm_modeset_lock
   drm_modeset_lock_all
@@ -1169,6 +1174,7 @@
   get_cpu_device
   get_device
   get_device_system_crosststamp
+  get_file_active
   get_file_rcu
   get_net_ns_by_fd
   get_net_ns_by_pid
@@ -1207,6 +1213,7 @@
   gpiod_get_value
   gpiod_get_value_cansleep
   gpiod_is_active_low
+  gpiod_put
   gpiod_set_array_value_cansleep
   gpiod_set_consumer_name
   gpiod_set_raw_value
@@ -2452,6 +2459,8 @@
   sdio_f0_readb
   sdio_f0_writeb
   sdio_get_host_pm_caps
+  sdio_memcpy_fromio
+  sdio_memcpy_toio
   sdio_readb
   sdio_readsb
   __sdio_register_driver
