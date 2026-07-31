@@ -25,6 +25,7 @@
 #include <linux/dma-buf.h>
 #include <linux/dma-mapping.h>
 #include <linux/virtio_ids.h>
+#include <uapi/linux/virtio_ring.h>
 
 #include <xen/grant_table.h>
 
@@ -1798,12 +1799,27 @@ static struct virtio_device_id id_table[] = {
 
 static unsigned int features[] = {};
 
+/*
+ * Under Xen the guest's one-shot indirect descriptor table lives in a
+ * foreign-mapped guest page that the vhost-user-media daemon can observe with
+ * stale contents, causing it to read a garbage descriptor and abort.  Since
+ * virtio-media only ever uses tiny descriptor chains (command + response and
+ * fixed-size event buffers), indirect descriptors provide no benefit.  Clear
+ * the feature so the guest always uses direct descriptor chains.
+ */
+static int virtio_media_validate(struct virtio_device *vdev)
+{
+	__virtio_clear_bit(vdev, VIRTIO_RING_F_INDIRECT_DESC);
+	return 0;
+}
+
 static struct virtio_driver virtio_media_driver = {
 	.feature_table = features,
 	.feature_table_size = ARRAY_SIZE(features),
 	.driver.name = VIRTIO_MEDIA_DEFAULT_DRIVER_NAME,
 	.driver.owner = THIS_MODULE,
 	.id_table = id_table,
+	.validate = virtio_media_validate,
 	.probe = virtio_media_probe,
 	.remove = virtio_media_remove,
 };
