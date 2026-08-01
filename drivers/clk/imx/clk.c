@@ -25,8 +25,10 @@ void imx_unregister_hw_clocks(struct clk_hw *hws[], unsigned int count)
 {
 	unsigned int i;
 
-	for (i = 0; i < count; i++)
-		clk_hw_unregister(hws[i]);
+	for (i = 0; i < count; i++) {
+		if (!IS_ERR_OR_NULL(hws[i]))
+			clk_hw_unregister(hws[i]);
+	}
 }
 EXPORT_SYMBOL_GPL(imx_unregister_hw_clocks);
 
