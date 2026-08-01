@@ -88,9 +88,12 @@
 #define IMX91_CLK_MQS2			89
 #define IMX91_CLK_AUDIO_XCVR		90
 #define IMX91_CLK_SPDIF			91
-#define IMX91_CLK_ENET1_QOS_TSN     92
-#define IMX91_CLK_ENET_TIMER        93
-#define IMX91_CLK_ENET2_REGULAR     95
+/* ENET1_QOS_TSN/ENET_TIMER/ENET2_REGULAR moved to 202/203/204 below: on
+ * lf-6.18.y the shared imx91.dtsi &fec/&eqos overrides already reference
+ * these macro names resolved against imx93-clock.h's numbering (which
+ * relocated them to make room for imx93-only clocks at 92-96), not this
+ * header's original lf-6.12.y numbering. Keep the driver's array indices
+ * in sync with what the dts actually requests. */
 #define IMX91_CLK_USB_PHY_BURUNIN	99
 #define IMX91_CLK_PAL_CAME_SCAN		100
 #define IMX91_CLK_A55_GATE		101
@@ -174,8 +177,7 @@
 #define IMX91_CLK_AUD_XCVR_GATE		179
 #define IMX91_CLK_SPDIF_GATE		180
 #define IMX91_CLK_HSIO_32K_GATE		181
-#define IMX91_CLK_ENET2_REGULAR_GATE		182
-#define IMX91_CLK_ENET1_QOS_TSN_GATE		183
+/* ENET2_REGULAR_GATE/ENET1_QOS_TSN_GATE moved to 205/206 below, see note above */
 #define IMX91_CLK_SYS_CNT_GATE		184
 #define IMX91_CLK_TSTMR1_GATE		185
 #define IMX91_CLK_TSTMR2_GATE		186
@@ -194,7 +196,16 @@
 #define IMX91_CLK_A55_SEL		199
 #define IMX91_CLK_A55_CORE		200
 #define IMX91_CLK_PDM_IPG		201
-#define IMX91_CLK_SPDIF_IPG		202
-#define IMX91_CLK_END			203
+/* 202-207 match imx93-clock.h's numbering exactly (that header is what the
+ * shared imx91_93_common.dtsi/imx91.dtsi on lf-6.18.y is actually compiled
+ * against), so clk-imx91.c populates its clks[] array at the same indices
+ * the dts requests. */
+#define IMX91_CLK_ENET1_QOS_TSN		202
+#define IMX91_CLK_ENET_TIMER		203
+#define IMX91_CLK_ENET2_REGULAR		204
+#define IMX91_CLK_ENET2_REGULAR_GATE	205
+#define IMX91_CLK_ENET1_QOS_TSN_GATE	206
+#define IMX91_CLK_SPDIF_IPG		207
+#define IMX91_CLK_END			208
 
 #endif
