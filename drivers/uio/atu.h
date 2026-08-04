@@ -13,9 +13,6 @@
 
 #define CHUNK_SIZE_IN_MB	1
 #define CHUNK_SIZE		(CHUNK_SIZE_IN_MB * 1024 * 1024)
-#define TOTAL_MEM_SIZE_GB	1
-#define TOTAL_MEM_SIZE		(TOTAL_MEM_SIZE_GB * 1024ULL * 1024 * 1024)
-#define NUM_CHUNKS		(TOTAL_MEM_SIZE / CHUNK_SIZE)
 
 #define OWBAR_BASE   0x110u
 #define OWAR_BASE    0x114u
@@ -83,14 +80,14 @@ enum atu_win_code {
 struct atu_conf_params {
 	__u64 outbound_addr;	/* IN: physical (outbound) base */
 	__u32 win_size;		/* IN: window size (power-of-two, >=1MB) */
-	__u32 inbound_addr;	/* OUT: inbound (CPU-visible) base in 0x40000000..0x80000000 */
+	__u32 inbound_addr;	/* OUT: inbound (CPU-visible) base in 0x10000000..0x80000000 */
 };
 
 /* IOCTL data structures */
 struct atu_resv_mem_req {
 	__u64 phys_addr;	/* Physical address (output for reserve, input for free) */
 	__u32 size;	/* Size in bytes (input for reserve, input for free) */
-	__u32 inbound_addr;	/* OUT: inbound (CPU-visible) base in 0x0..0x40000000 */
+	__u32 inbound_addr;	/* OUT: inbound (CPU-visible) base in 0x0..0x10000000 */
 };
 
 struct atu_resv_mem_info {
