@@ -467,6 +467,11 @@ _IMX952_DTB_OUTS = [
     "arch/arm64/boot/dts/freescale/imx952-evk-adv7535-os08a20-csi0-4lanes-mqs.dtb",
     "arch/arm64/boot/dts/freescale/imx952-evk-dsi-serdes.dtb",
     "arch/arm64/boot/dts/freescale/imx952-evk-adv7535-rpmsg.dtb",
+    "arch/arm64/boot/dts/freescale/imx952-frdm-os08a20-csi0-2lanes.dtb",
+    "arch/arm64/boot/dts/freescale/imx952-frdm-os08a20-dual.dtb",
+    "arch/arm64/boot/dts/freescale/imx952-frdm-aud-hat.dtb",
+    "arch/arm64/boot/dts/freescale/imx952-frdm-boe-wxga-lvds-panel.dtb",
+    "arch/arm64/boot/dts/freescale/imx952-frdm-waveshare-7inch-c-panel.dtb",
 ]
 
 
