@@ -351,10 +351,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-verdin-wifi-ivy.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-verdin-wifi-mallow.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-verdin-wifi-yavia.dtb
 
-imx8mp-evk-pcie-dtbs := imx8mp-evk.dtb imx8mp-evk-pcie.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-pcie.dtb
-
-imx8mp-evk-pcie-ep-dtbs += imx8mp-evk-pcie.dtb imx-pcie0-ep.dtbo
+imx8mp-evk-pcie-ep-dtbs += imx8mp-evk.dtb imx-pcie0-ep.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-pcie-ep.dtb
 
 imx8mp-tqma8mpql-mba8mpxl-lvds-tm070jvhg33-dtbs += imx8mp-tqma8mpql-mba8mpxl.dtb imx8mp-tqma8mpql-mba8mpxl-lvds-tm070jvhg33.dtbo
@@ -371,7 +368,6 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-tqma8mpql-mba8mp-ras314-lvds-tm070jvhg33-imx219
 imx8mp-evk-revb4-dtbs := imx8mp-evk.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-rm67191-dtbs := imx8mp-evk-rm67191.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-it6263-lvds-dual-channel-dtbs := imx8mp-evk-it6263-lvds-dual-channel.dtb imx8mp-evk-revb4.dtbo
-imx8mp-evk-revb4-pcie-dtbs := imx8mp-evk-pcie.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-pcie-ep-dtbs := imx8mp-evk-pcie-ep.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-ecspi-slave-dtbs := imx8mp-evk-ecspi-slave.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-jdi-wuxga-lvds-panel-dtbs := imx8mp-evk-jdi-wuxga-lvds-panel.dtb imx8mp-evk-revb4.dtbo
@@ -404,7 +400,6 @@ imx8mp-evk-revb4-rm692c9-dtbs := imx8mp-evk-rm692c9.dtb imx8mp-evk-revb4.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-rm67191.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-it6263-lvds-dual-channel.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-pcie.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-pcie-ep.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-ecspi-slave.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-jdi-wuxga-lvds-panel.dtb
