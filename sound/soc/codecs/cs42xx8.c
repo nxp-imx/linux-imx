@@ -44,7 +44,6 @@ struct cs42xx8_priv {
 
 	bool slave_mode[2];
 	bool is_tdm;
-	bool is_rpmsg_i2c;
 	unsigned long sysclk;
 	u32 tx_channels;
 	struct gpio_desc *gpiod_reset;
@@ -536,8 +535,7 @@ const struct cs42xx8_driver_data cs42888_data = {
 };
 EXPORT_SYMBOL_GPL(cs42888_data);
 
-int cs42xx8_probe(struct device *dev, struct regmap *regmap,
-		  struct cs42xx8_driver_data *drvdata, bool is_rpmsg_i2c)
+int cs42xx8_probe(struct device *dev, struct regmap *regmap, struct cs42xx8_driver_data *drvdata)
 {
 	struct cs42xx8_priv *cs42xx8;
 	int ret, val, i;
@@ -557,8 +555,6 @@ int cs42xx8_probe(struct device *dev, struct regmap *regmap,
 	cs42xx8->regmap = regmap;
 
 	cs42xx8->drvdata = drvdata;
-
-	cs42xx8->is_rpmsg_i2c = is_rpmsg_i2c;
 
 	cs42xx8->gpiod_reset = devm_gpiod_get_optional(dev, "reset",
 							GPIOD_OUT_HIGH);
@@ -658,7 +654,7 @@ static int cs42xx8_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	if (!cs42xx8->is_rpmsg_i2c) {
+	if (!cs42xx8->drvdata->is_rpmsg_i2c) {
 		gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 0);
 	}
 
@@ -702,7 +698,7 @@ static int cs42xx8_runtime_suspend(struct device *dev)
 			       cs42xx8->supplies);
 
 	/* In rpmsg i2c cases, don't reset codec at runtime suspend */
-	if (!cs42xx8->is_rpmsg_i2c)
+	if (!cs42xx8->drvdata->is_rpmsg_i2c)
 		gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 1);
 
 	clk_disable_unprepare(cs42xx8->clk);
