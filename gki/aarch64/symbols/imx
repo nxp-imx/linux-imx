@@ -1111,6 +1111,7 @@
   fwnode_graph_get_endpoint_by_id
   fwnode_graph_get_next_endpoint
   fwnode_graph_get_remote_endpoint
+  fwnode_graph_parse_endpoint
   fwnode_handle_get
   fwnode_irq_get_byname
   fwnode_mdio_find_device
@@ -2006,6 +2007,7 @@
   phy_init_hw
   phylink_connect_phy
   phylink_create
+  phylink_decode_usxgmii_word
   phylink_destroy
   phylink_disconnect_phy
   phylink_ethtool_get_eee
