@@ -139,7 +139,7 @@ static int neutron_inference_run(struct neutron_inference *inf)
 	 * Otherwise it means neutron is stuck.
 	 */
 	val = ndev->mbox->ops->read_ret(ndev->mbox);
-	if (unlikely(val != RESET_VAL)) {
+	if (unlikely(val != ndev->mbox->reset_val)) {
 		dev_dbg(ndev->dev, "reset neutron: 0x%x\n", val);
 		mutex_lock(&ndev->mutex);
 		neutron_hw_reset(ndev);

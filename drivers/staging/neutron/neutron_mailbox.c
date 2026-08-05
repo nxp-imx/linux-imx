@@ -131,18 +131,22 @@ static int mbox_send_reset(struct neutron_mbox *mbox)
 
 	/* Write POLL first to wake firmware and signal "request incoming". */
 	writel(POLL, mbox->base + MBOX3);
-	writel(RESET_VAL, mbox->base + MBOX4);
-	writel(RESET_VAL, mbox->base + MBOX5);
+	writel(mbox->reset_val, mbox->base + MBOX4);
+	writel(mbox->reset_val, mbox->base + MBOX5);
 	writel(RESET, mbox->base + MBOX3);
 
 	usleep_range(2, 5);
 	/* Wait for neutron to get into reset */
-	for (i = 0; i < 50; i++) {
+	for (i = 0; i < 20; i++) {
 		val = readl(mbox->base + MBOX0);
-		if (val != RESET_VAL)
-			usleep_range(2, 10);
-		else
+		if (val == RESET_VAL) {
+			mbox->reset_val = RESET_VAL;
 			return 0;
+		} else if (val == RESET_VAL_OLD) {
+			mbox->reset_val = RESET_VAL_OLD;
+			return 0;
+		}
+		usleep_range(2, 10);
 	}
 
 	return val;
@@ -272,6 +276,7 @@ struct neutron_mbox *neutron_mbox_create(struct neutron_device *ndev, int irq,
 
 	mbox->callback = callback;
 	mbox->ops = &neutron_mbox_ops;
+	mbox->reset_val = RESET_VAL;
 
 	ret = mbox_request_irq(mbox, mbox_irq_handler);
 	if (ret < 0) {

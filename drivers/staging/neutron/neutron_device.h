@@ -66,6 +66,7 @@
 #define DONE      0xAD0
 #define DM_DONE   0xDAD
 #define RESET_VAL 0xA1
+#define RESET_VAL_OLD 0x0
 
 // values received from SoC (first driver mbox)
 #define POLL            0x9011

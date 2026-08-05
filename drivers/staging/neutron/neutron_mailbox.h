@@ -31,6 +31,12 @@ struct neutron_mbox {
 	struct neutron_device *ndev;
 	const struct neutron_mbox_ops *ops;
 	mbox_rx_callback callback;
+	/* Reset reply value expected from the firmware. Defaults to RESET_VAL
+	 * and is downgraded to RESET_VAL_OLD if an old neutron runtime is
+	 * detected during reset, keeping the new driver compatible with an
+	 * un-updated runtime on the board.
+	 */
+	u32 reset_val;
 };
 
 struct neutron_mbox_ops {
