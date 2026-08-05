@@ -747,7 +747,7 @@ static struct dma_pte *pfn_to_dma_pte(struct dmar_domain *domain,
 
 	if (!domain_pfn_supported(domain, pfn))
 		/* Address beyond IOMMU's addressing capabilities. */
-		return NULL;
+		return ERR_PTR(-EINVAL);
 
 	parent = domain->pgd;
 
@@ -769,11 +769,11 @@ static struct dma_pte *pfn_to_dma_pte(struct dmar_domain *domain,
 							     SZ_4K);
 
 			if (!tmp_page)
-				return NULL;
+				return ERR_PTR(-ENOMEM);
 #else
 			tmp_page = pop_pkvm_memcache_page(&domain->mc, pkvm_phys_to_virt);
 			if (!tmp_page)
-				return NULL;
+				return ERR_PTR(-ENOMEM);
 			memset(tmp_page, 0, VTD_PAGE_SIZE);
 #endif
 
@@ -798,7 +798,10 @@ static struct dma_pte *pfn_to_dma_pte(struct dmar_domain *domain,
 			}
 			else
 				domain_flush_cache(domain, pte, sizeof(*pte));
+		} else if (WARN_ON_ONCE(dma_pte_superpage(pte))) {
+			return ERR_PTR(-EEXIST);
 		}
+
 		if (level == 1)
 			break;
 
@@ -1465,6 +1468,9 @@ static void iommu_disable_translation(struct intel_iommu *iommu)
 	u32 sts;
 	unsigned long flag;
 
+	if (pkvm_enabled())
+		return;
+
 	if (iommu_skip_te_disable && iommu->drhd->gfx_dedicated &&
 	    (cap_read_drain(iommu->cap) || cap_write_drain(iommu->cap)))
 		return;
@@ -1654,6 +1660,8 @@ int domain_context_mapping_one(struct dmar_domain *domain,
 	struct device_domain_info *info =
 			domain_lookup_dev_info(domain, iommu, bus, devfn);
 	u16 did = domain_id_iommu(domain, iommu);
+#else
+	struct pkvm_device dev = { .info = info };
 #endif
 	int translation = CONTEXT_TT_MULTI_LEVEL;
 	struct dma_pte *pgd = domain->pgd;
@@ -1683,7 +1691,11 @@ int domain_context_mapping_one(struct dmar_domain *domain,
 	if (!context)
 		goto out_unlock;
 
+#ifndef __PKVM_HYP__
 	ret = 0;
+#else
+	ret = -EEXIST;
+#endif
 	if (context_present(context) && !context_copied(iommu, bus, devfn))
 		goto out_unlock;
 
@@ -1692,13 +1704,9 @@ int domain_context_mapping_one(struct dmar_domain *domain,
 #endif
 
 #ifdef __PKVM_HYP__
-	ret = pkvm_get_domain_cache_tag_assign(pgd, did,
-					       IOMMU_NO_PASID, info);
-	if (ret) {
-		pr_err("iommu%d: failed to get the domain for pgd: %p\n",
-		       iommu->seq_id, pgd);
+	ret = cache_tag_assign_domain(domain, did, &dev, IOMMU_NO_PASID);
+	if (ret)
 		goto out_unlock;
-	}
 #endif
 	context_clear_entry(context);
 	context_set_domain_id(context, did);
@@ -1791,34 +1799,32 @@ static int hardware_largepage_caps(struct dmar_domain *domain, unsigned long iov
  */
 static void switch_to_super_page(struct dmar_domain *domain,
 				 unsigned long start_pfn,
-				 unsigned long end_pfn, int level)
+				 unsigned long end_pfn, int level,
+				 struct dma_pte *pte)
 {
 	unsigned long lvl_pages = lvl_to_nr_pages(level);
-	struct dma_pte *pte = NULL;
+	unsigned long orig_start_pfn = start_pfn;
+	bool flush = false;
 
 	if (WARN_ON(!IS_ALIGNED(start_pfn, lvl_pages) ||
 		    !IS_ALIGNED(end_pfn + 1, lvl_pages)))
 		return;
 
 	while (start_pfn <= end_pfn) {
-		if (!pte)
-			pte = pfn_to_dma_pte(domain, start_pfn, &level,
-					     GFP_ATOMIC);
-
 		if (dma_pte_present(pte)) {
 			dma_pte_free_pagetable(domain, start_pfn,
 					       start_pfn + lvl_pages - 1,
 					       level + 1);
-
-			cache_tag_flush_range(domain, start_pfn << VTD_PAGE_SHIFT,
-					      end_pfn << VTD_PAGE_SHIFT, 0);
+			flush = true;
 		}
 
 		pte++;
 		start_pfn += lvl_pages;
-		if (first_pte_in_page(pte))
-			pte = NULL;
 	}
+
+	if (flush)
+		cache_tag_flush_range(domain, orig_start_pfn << VTD_PAGE_SHIFT,
+				      end_pfn << VTD_PAGE_SHIFT, 0);
 }
 
 int domain_map(struct dmar_domain *domain, unsigned long iov_pfn,
@@ -1880,8 +1886,8 @@ int domain_map(struct dmar_domain *domain, unsigned long iov_pfn,
 
 			pte = pfn_to_dma_pte(domain, iov_pfn, &largepage_lvl,
 					     gfp);
-			if (!pte) {
-				ret = -ENOMEM;
+			if (IS_ERR(pte)) {
+				ret = PTR_ERR(pte);
 				goto out;
 			}
 			first_pte = pte;
@@ -1898,7 +1904,7 @@ int domain_map(struct dmar_domain *domain, unsigned long iov_pfn,
 							round_down(nr_pages, lvl_pages),
 							nr_pte_to_next_page(pte) * lvl_pages);
 				end_pfn = iov_pfn + pages_to_remove - 1;
-				switch_to_super_page(domain, iov_pfn, end_pfn, largepage_lvl);
+				switch_to_super_page(domain, iov_pfn, end_pfn, largepage_lvl, pte);
 			} else {
 				pteval &= ~(uint64_t)DMA_PTE_LARGE_PAGE;
 			}
@@ -2005,7 +2011,12 @@ static void pasid_free_table(struct pasid_dir_entry *dir, int max_pde)
 }
 #endif /* __PKVM_HYP__ */
 
+#ifndef __PKVM_HYP__
 void domain_context_clear_one(struct device_domain_info *info, u8 bus, u8 devfn)
+#else
+void domain_context_clear_one(struct device_domain_info *info, u8 bus, u8 devfn,
+			      struct dmar_domain **domain)
+#endif
 {
 	struct intel_iommu *iommu = info->iommu;
 	struct context_entry *context;
@@ -2014,6 +2025,8 @@ void domain_context_clear_one(struct device_domain_info *info, u8 bus, u8 devfn)
 	bool sm = sm_supported(iommu);
 	u64 pasid_dir_sz;
 	void *pgd = NULL;
+
+	*domain = NULL;
 #endif
 	u16 did;
 
@@ -2037,6 +2050,7 @@ void domain_context_clear_one(struct device_domain_info *info, u8 bus, u8 devfn)
 
 #ifdef __PKVM_HYP__
 	if (context_present(context)) {
+		pkvm_populate_dev_info_from_ce(info, context);
 		if (sm) {
 			pasid_dir = __pkvm_va(context->lo & VTD_PAGE_MASK);
 			pasid_dir_sz = get_pasid_dir_size(context);
@@ -2055,17 +2069,25 @@ void domain_context_clear_one(struct device_domain_info *info, u8 bus, u8 devfn)
 	did = context_domain_id(context);
 	context_clear_present(context);
 	__iommu_flush_cache(iommu, context, sizeof(*context));
+#ifndef __PKVM_HYP__
 	spin_unlock(&iommu->lock);
+#endif
 	intel_context_flush_no_pasid(info, context, did);
 	context_clear_entry(context);
+#ifdef __PKVM_HYP__
+	spin_unlock(&iommu->lock);
+#endif
 	__iommu_flush_cache(iommu, context, sizeof(*context));
 
 #ifdef __PKVM_HYP__
 	if (pasid_dir)
 		pasid_free_table(pasid_dir, pasid_dir_sz);
-	else if (pgd)
-		pkvm_put_domain_cache_tag_unassign(pgd, did,
-						   IOMMU_NO_PASID, info);
+	else if (pgd) {
+		struct pkvm_device dev = { .info = info };
+
+		*domain = pkvm_get_iommu_domain_noref(pgd, did);
+		cache_tag_unassign_domain(*domain, did, &dev, IOMMU_NO_PASID);
+	}
 #endif
 }
 
@@ -2074,12 +2096,10 @@ int __domain_setup_first_level(struct intel_iommu *iommu, struct device *dev,
 			       ioasid_t pasid, u16 did, phys_addr_t fsptptr,
 			       int flags, struct iommu_domain *old)
 {
-	if (!old)
-		return intel_pasid_setup_first_level(iommu, dev, fsptptr, pasid,
-						     did, flags);
-	return intel_pasid_replace_first_level(iommu, dev, fsptptr, pasid, did,
-					       iommu_domain_did(old, iommu),
-					       flags);
+	if (old)
+		intel_pasid_tear_down_entry(iommu, dev, pasid, false);
+
+	return intel_pasid_setup_first_level(iommu, dev, fsptptr, pasid, did, flags);
 }
 
 static int domain_setup_second_level(struct intel_iommu *iommu,
@@ -2087,23 +2107,20 @@ static int domain_setup_second_level(struct intel_iommu *iommu,
 				     struct device *dev, ioasid_t pasid,
 				     struct iommu_domain *old)
 {
-	if (!old)
-		return intel_pasid_setup_second_level(iommu, domain,
-						      dev, pasid);
-	return intel_pasid_replace_second_level(iommu, domain, dev,
-						iommu_domain_did(old, iommu),
-						pasid);
+	if (old)
+		intel_pasid_tear_down_entry(iommu, dev, pasid, false);
+
+	return intel_pasid_setup_second_level(iommu, domain, dev, pasid);
 }
 
 static int domain_setup_passthrough(struct intel_iommu *iommu,
 				    struct device *dev, ioasid_t pasid,
 				    struct iommu_domain *old)
 {
-	if (!old)
-		return intel_pasid_setup_pass_through(iommu, dev, pasid);
-	return intel_pasid_replace_pass_through(iommu, dev,
-						iommu_domain_did(old, iommu),
-						pasid);
+	if (old)
+		intel_pasid_tear_down_entry(iommu, dev, pasid, false);
+
+	return intel_pasid_setup_pass_through(iommu, dev, pasid);
 }
 
 static int domain_setup_first_level(struct intel_iommu *iommu,
@@ -4063,12 +4080,14 @@ static size_t intel_iommu_unmap(struct iommu_domain *domain,
 {
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
 	unsigned long start_pfn, last_pfn;
+	struct dma_pte *pte;
 	int level = 0;
 
 	/* Cope with horrid API which requires us to unmap more than the
 	   size argument if it happens to be a large-page mapping. */
-	if (unlikely(!pfn_to_dma_pte(dmar_domain, iova >> VTD_PAGE_SHIFT,
-				     &level, GFP_ATOMIC)))
+	pte = pfn_to_dma_pte(dmar_domain, iova >> VTD_PAGE_SHIFT, &level,
+			     GFP_ATOMIC);
+	if (IS_ERR(pte))
 		return 0;
 
 	if (size < VTD_PAGE_SIZE << level_to_offset_bits(level))
@@ -4139,7 +4158,7 @@ static phys_addr_t intel_iommu_iova_to_phys(struct iommu_domain *domain,
 
 	pte = pfn_to_dma_pte(dmar_domain, iova >> VTD_PAGE_SHIFT, &level,
 			     GFP_ATOMIC);
-	if (pte && dma_pte_present(pte))
+	if (!IS_ERR(pte) && dma_pte_present(pte))
 		phys = dma_pte_addr(pte) +
 			(iova & (BIT_MASK(level_to_offset_bits(level) +
 						VTD_PAGE_SHIFT) - 1));
@@ -4790,7 +4809,7 @@ static int intel_iommu_read_and_clear_dirty(struct iommu_domain *domain,
 		pte = pfn_to_dma_pte(dmar_domain, iova >> VTD_PAGE_SHIFT, &lvl,
 				     GFP_ATOMIC);
 		pgsize = level_size(lvl) << VTD_PAGE_SHIFT;
-		if (!pte || !dma_pte_present(pte)) {
+		if (IS_ERR(pte) || !dma_pte_present(pte)) {
 			iova += pgsize;
 			continue;
 		}

@@ -58,7 +58,8 @@ static bool cache_tage_match(struct cache_tag *tag, u16 domain_id,
 #else
 		struct device_domain_info *info = dev_iommu_priv_get(dev);
 
-		return info->bus == tag->bus && info->devfn == tag->devfn;
+		return info->bus == tag->bus && info->devfn == tag->devfn &&
+		       tag->iommu == iommu;
 #endif
 	}
 

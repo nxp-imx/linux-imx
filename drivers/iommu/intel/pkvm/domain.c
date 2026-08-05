@@ -7,6 +7,7 @@
 #include "pkvm.h"
 #include "pkvm/debug.h"
 #include "pkvm/memory.h"
+#include "pkvm/vmx/ept.h"
 #include "../iommu.h"
 
 /*
@@ -17,6 +18,13 @@ static DEFINE_HASHTABLE(iommu_domain_hasht, 8);
 static DECLARE_BITMAP(iommu_domains_bitmap, MAX_IOMMU_DOMAIN_NUM);
 static struct dmar_domain iommu_domains[MAX_IOMMU_DOMAIN_NUM];
 static DEFINE_PKVM_SPINLOCK(iommu_domain_lock);
+
+/*
+ * Passthrough domain for implementing passthrough (identity) mode for the host,
+ * signified by the default DID (FLPT_DEFAULT_DID). A real passthrough mode
+ * (no translation) would allow devices to access all physical memory. So model
+ * passthrough mode as a second-stage domain backed by the host EPT instead.
+ */
 struct dmar_domain pt_domain;
 
 void init_pt_domain(void)
@@ -24,6 +32,8 @@ void init_pt_domain(void)
 	INIT_LIST_HEAD(&pt_domain.cache_tags);
 	pkvm_spin_lock_init(&pt_domain.cache_lock);
 	pt_domain.qi_batch = &pt_domain._qi_batch;
+	pt_domain.pgd = __pkvm_va(pkvm_host_ept_root());
+	pt_domain.agaw = level_to_agaw(pkvm_host_ept_level());
 }
 
 static struct dmar_domain *__pkvm_get_iommu_domain_locked(void *pgd, bool inc_ref)
@@ -43,7 +53,7 @@ static struct dmar_domain *__pkvm_get_iommu_domain_locked(void *pgd, bool inc_re
 	return NULL;
 }
 
-struct dmar_domain *pkvm_get_iommu_domain(void *pgd)
+static struct dmar_domain *__pkvm_get_iommu_domain(void *pgd)
 {
 	struct dmar_domain *domain;
 
@@ -56,66 +66,97 @@ struct dmar_domain *pkvm_get_iommu_domain(void *pgd)
 
 /*
  * Retrieve the domain without incrementing refcount.
- * This api is useful when there is a refcount on the domain
- * and refcount is guaranteed to be not dropped.
+ * This is useful when there is a refcount on the domain which is guaranteed
+ * to be >1 (at least one reference).
  */
-struct dmar_domain *pkvm_get_iommu_domain_noref(void *pgd)
+static struct dmar_domain *__pkvm_get_iommu_domain_noref(void *pgd)
 {
 	struct dmar_domain *domain;
 
 	pkvm_spin_lock(&iommu_domain_lock);
 	domain = __pkvm_get_iommu_domain_locked(pgd, false);
+	/*
+	 * pgd passed in here is derived from a valid context/pasid entry.
+	 * Hence it's a pKVM bug if this pgd can't resolve to a domain.
+	 */
+	BUG_ON(!domain || atomic_read(&domain->refcount) <= 1);
 	pkvm_spin_unlock(&iommu_domain_lock);
 
 	return domain;
 }
 
-void pkvm_put_iommu_domain(struct dmar_domain *domain)
+/*
+ * Check the domain properties that affect how an IOMMU walks and caches the
+ * domain page tables. A domain may be shared by multiple IOMMUs, but only if
+ * each IOMMU is compatible with the properties selected at allocation time.
+ */
+static bool iommu_domain_compatible(struct intel_iommu *iommu,
+				    struct dmar_domain *domain)
 {
-	WARN_ON_ONCE(atomic_dec_if_positive(&domain->refcount) <= 0);
+	int addr_width;
+
+	if (domain->use_first_level) {
+		if (!sm_supported(iommu) || !ecap_flts(iommu->ecap))
+			return false;
+	} else {
+		if (sm_supported(iommu) && !ecap_slts(iommu->ecap))
+			return false;
+
+		if (cap_caching_mode(iommu->cap) && !domain->iotlb_sync_map)
+			return false;
+	}
+
+	if (domain->iommu_superpage >
+	    iommu_superpage_capability(iommu, domain->use_first_level))
+		return false;
+
+	if (domain->iommu_coherency !=
+	    iommu_paging_structure_coherency(iommu))
+		return false;
+
+	addr_width = agaw_to_width(iommu->agaw);
+	if (addr_width > cap_mgaw(iommu->cap))
+		addr_width = cap_mgaw(iommu->cap);
+	if (domain->gaw > addr_width || domain->agaw > iommu->agaw)
+		return false;
+
+	return true;
 }
 
-int pkvm_get_domain_cache_tag_assign(void *pgd, int did, u32 pasid,
-				     struct device_domain_info *info)
+struct dmar_domain *pkvm_get_iommu_domain(void *pgd, u16 did,
+					  struct intel_iommu *iommu)
 {
-	struct pkvm_device dev = { .info = info };
 	struct dmar_domain *domain;
-	int ret;
 
 	if (did == FLPT_DEFAULT_DID)
-		return cache_tag_assign_domain(&pt_domain, did, &dev, pasid);
+		return &pt_domain;
 
-	domain = pkvm_get_iommu_domain(pgd);
-	if (!domain) {
-		pkvm_err("%s: Failed to locate domain with pgd: %p\n",
-			 __func__, pgd);
-		return -EFAULT;
-	}
+	domain = __pkvm_get_iommu_domain(pgd);
 
-	ret = cache_tag_assign_domain(domain, did, &dev, pasid);
-	if (ret) {
+	if (domain && !iommu_domain_compatible(iommu, domain)) {
+		pkvm_err("%s: domain[pgd:%p] is incompatible with iommu%d\n",
+			 __func__, pgd, iommu->seq_id);
 		pkvm_put_iommu_domain(domain);
-		return ret;
+		domain = NULL;
 	}
-	return 0;
+
+	return domain;
 }
 
-void pkvm_put_domain_cache_tag_unassign(void *pgd, int did, u32 pasid,
-					struct device_domain_info *info)
+struct dmar_domain *pkvm_get_iommu_domain_noref(void *pgd, u16 did)
 {
-	struct pkvm_device dev = { .info = info };
-	struct dmar_domain *domain;
+	if (did == FLPT_DEFAULT_DID)
+		return &pt_domain;
 
-	if (did == FLPT_DEFAULT_DID) {
-		cache_tag_unassign_domain(&pt_domain, did, &dev, pasid);
+	return __pkvm_get_iommu_domain_noref(pgd);
+}
+
+void pkvm_put_iommu_domain(struct dmar_domain *domain)
+{
+	if (domain == &pt_domain)
 		return;
-	}
 
-	domain = pkvm_get_iommu_domain_noref(pgd);
-	BUG_ON(!domain);
-
-	cache_tag_unassign_domain(domain, did, &dev, pasid);
-	pkvm_put_iommu_domain(domain);
+	WARN_ON_ONCE(atomic_dec_if_positive(&domain->refcount) <= 0);
 }
 
 static int refill_domain_memcache(struct dmar_domain *domain,
@@ -149,13 +190,34 @@ static void free_domain_memcache(struct dmar_domain *domain,
 	}
 }
 
-int pkvm_free_iommu_domain(struct dmar_domain *domain, struct pkvm_memcache *teardown_mc)
+int pkvm_free_iommu_domain(u64 pgd_gpa, struct pkvm_memcache *teardown_mc)
 {
+	void *pgd = pkvm_host_gpa_to_virt(pgd_gpa);
+	struct dmar_domain *domain;
+
+	pkvm_spin_lock(&iommu_domain_lock);
+
+	domain = __pkvm_get_iommu_domain_locked(pgd, false);
+	if (!domain) {
+		pkvm_spin_unlock(&iommu_domain_lock);
+		pkvm_err("%s: no domain exist for pgd: %p\n", __func__, pgd);
+		return -EINVAL;
+	}
+
 	if (atomic_cmpxchg(&domain->refcount, 1, 0) != 1) {
 		pkvm_err("%s: domain[pgd:%p] has users, refcount %d\n",
 			 __func__, domain->pgd, atomic_read(&domain->refcount));
+		pkvm_spin_unlock(&iommu_domain_lock);
 		return -EBUSY;
 	}
+
+	/*
+	 * Remove the domain from the hash list while still holding the lock,
+	 * to prevent someone else from getting this domain while freeing it.
+	 */
+	hash_del(&domain->hnode);
+
+	pkvm_spin_unlock(&iommu_domain_lock);
 
 	/* Unmap any remaining mappings. */
 	domain_unmap(domain, 0, DOMAIN_MAX_PFN(domain->gaw), NULL);
@@ -172,7 +234,6 @@ int pkvm_free_iommu_domain(struct dmar_domain *domain, struct pkvm_memcache *tea
 		 __func__, domain->pgd, teardown_mc->count);
 
 	pkvm_spin_lock(&iommu_domain_lock);
-	hash_del(&domain->hnode);
 	__clear_bit(domain->index, iommu_domains_bitmap);
 	memset(domain, 0, sizeof(struct dmar_domain));
 	pkvm_spin_unlock(&iommu_domain_lock);
@@ -240,7 +301,7 @@ static int iommu_domain_map(struct domain_map_data *data)
 	if (check_add_overflow(phys, size, &end))
 		return -EINVAL;
 
-	domain = pkvm_get_iommu_domain(pkvm_host_gpa_to_virt(data->pgd_gpa));
+	domain = __pkvm_get_iommu_domain(pkvm_host_gpa_to_virt(data->pgd_gpa));
 	if (!domain) {
 		pkvm_err("%s: failed to get the domain [pgd:%llx]\n",
 			 __func__, data->pgd_gpa);
@@ -283,7 +344,7 @@ int pkvm_iommu_domain_unmap(u64 pgd_gpa, u64 start_pfn, u64 last_pfn)
 {
 	struct dmar_domain *domain;
 
-	domain = pkvm_get_iommu_domain(pkvm_host_gpa_to_virt(pgd_gpa));
+	domain = __pkvm_get_iommu_domain(pkvm_host_gpa_to_virt(pgd_gpa));
 	if (!domain) {
 		pkvm_err("%s, failed to get the domain [pgd:%llx]\n",
 			 __func__, pgd_gpa);

@@ -189,6 +189,11 @@ static long gunyah_qtvm_attach(struct gunyah_vm *ghvm, struct gunyah_auth_desc *
 		return -EOVERFLOW;
 
 	mutex_lock(&gunyah_qtvm_lock);
+	if (ghvm->auth_vm_mgr_data) {
+		mutex_unlock(&gunyah_qtvm_lock);
+		return -EBUSY;
+	}
+
 	vm = kzalloc(sizeof(*vm), GFP_KERNEL_ACCOUNT);
 	if (!vm) {
 		mutex_unlock(&gunyah_qtvm_lock);
@@ -218,10 +223,12 @@ static void gunyah_qtvm_detach(struct gunyah_vm *ghvm)
 
 	kfree(vm->parcel_list);
 	gunyah_notify_clients(vm, GUNYAH_QTVM_POWEROFF);
+	mutex_lock(&gunyah_qtvm_lock);
 	list_del(&vm->list);
 	kfree(vm);
 	ghvm->auth_vm_mgr_ops = NULL;
 	ghvm->auth_vm_mgr_data = NULL;
+	mutex_unlock(&gunyah_qtvm_lock);
 }
 
 static struct gunyah_auth_vm_mgr auth_vm = {

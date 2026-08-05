@@ -64,7 +64,6 @@ struct clear_ce_data {
 	u8 bus;
 	u8 devfn;
 	u8 ats_qdep;
-	u8 ats_supported: 1;
 };
 
 struct set_lm_ce_data {
@@ -96,13 +95,11 @@ struct pasid_setup_fl_data {
 	u64 fsptptr_gpa;
 	u64 donation_page_gpa;
 	u32 pasid;
-	u32 flags;
 	u16 did;
-	u16 old_did; /* replace_fl */
 	u8 bus;
 	u8 devfn;
 	u8 ats_qdep;
-	u8 ats_supported: 1;
+	u8 force_snoop: 1;
 };
 
 struct pasid_setup_sl_data {
@@ -111,11 +108,9 @@ struct pasid_setup_sl_data {
 	u64 donation_page_gpa;
 	u32 pasid;
 	u16 did;
-	u16 old_did; /* replace_sl */
 	u8 bus;
 	u8 devfn;
 	u8 ats_qdep;
-	u8 ats_supported: 1;
 };
 
 struct pasid_teardown_data {
@@ -124,7 +119,6 @@ struct pasid_teardown_data {
 	u8 bus;
 	u8 devfn;
 	u8 ats_qdep;
-	u8 ats_supported: 1;
 };
 
 struct alloc_domain_data {

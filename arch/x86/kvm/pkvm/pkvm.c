@@ -77,13 +77,6 @@ static struct pkvm_x86_ops pkvm_x86_ops __read_mostly;
 static int __pkvm_vcpu_free(struct pkvm_vm *pkvm_vm, int vcpu_handle,
 			    struct pkvm_memcache *mc);
 
-static int pkvm_enable_virtualization_cpu(void)
-{
-	kvm_user_return_msr_cpu_online();
-
-	return kvm_x86_call(enable_virtualization_cpu)();
-}
-
 static int allocate_pkvm_vm_handle(struct pkvm_vm *pkvm_vm)
 {
 	struct pkvm_vm_ref *pkvm_vm_ref;
@@ -846,14 +839,6 @@ static int pkvm_vcpu_load(int vm_handle, int vcpu_handle)
 		 * must be a pkvm bug.
 		 */
 		BUG_ON(pkvm_vcpu != pkvm_get_vcpu(vm_handle, vcpu_handle));
-
-		/*
-		 * Save the PKRU used by the host for the pKVM hypervisor to
-		 * switch with the guest. The XCR0 and XSS are already saved in
-		 * the kvm_host structure which are not changed at the running
-		 * time.
-		 */
-		vcpu->arch.host_pkru = read_pkru();
 
 		this_cpu_write(cur_guest_vcpu, vcpu);
 	} else if (loaded_cpu == cpu) {
@@ -2097,9 +2082,6 @@ void pkvm_handle_host_hypercall(struct kvm_vcpu *vcpu)
 		break;
 	case __pkvm__check_processor_compatibility:
 		ret = kvm_x86_call(check_processor_compatibility)();
-		break;
-	case __pkvm__enable_virtualization_cpu:
-		ret = pkvm_enable_virtualization_cpu();
 		break;
 	case __pkvm__vm_init:
 		ret = pkvm_vm_init(pkvm_host_gpa_to_phys(pkvm_hc_input1(vcpu)),

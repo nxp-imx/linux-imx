@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <linux/kvm_types.h>
 #include <linux/memblock.h>
+#include <asm/fpu/xcr.h>
 #include <kvm_emulate.h>
 #include <vmx/x86_ops.h>
 #include "debug.h"
@@ -107,14 +108,14 @@ static void handle_cr(struct kvm_vcpu *vcpu)
 	}
 }
 
-static bool is_msr_in_bitmap_range(unsigned long msr)
+static bool is_msr_in_bitmap_range(u32 msr)
 {
 	return msr <= 0x1FFF || (msr >= 0xC0000000 && msr <= 0xC0001FFF);
 }
 
 static int handle_read_msr(struct kvm_vcpu *vcpu)
 {
-	unsigned long msr = vcpu->arch.regs[VCPU_REGS_RCX];
+	u32 msr = vcpu->arch.regs[VCPU_REGS_RCX];
 	u32 low, high;
 
 	/*
@@ -137,7 +138,7 @@ static int handle_read_msr(struct kvm_vcpu *vcpu)
 
 static int handle_write_msr(struct kvm_vcpu *vcpu)
 {
-	unsigned long msr = vcpu->arch.regs[VCPU_REGS_RCX];
+	u32 msr = vcpu->arch.regs[VCPU_REGS_RCX];
 	int ret = X86EMUL_CONTINUE;
 	u32 low, high;
 	u64 val;
@@ -184,6 +185,48 @@ static int handle_write_msr(struct kvm_vcpu *vcpu)
 		}
 		break;
 	}
+	case MSR_IA32_XSS:
+		BUG_ON(!pkvm_cpu_initialized(vcpu->cpu));
+
+		if (val != kvm_host.xss) {
+			pkvm_warn("Host attempt to modify MSR_IA32_XSS: 0x%llx (expected 0x%llx)\n",
+				  val, kvm_host.xss);
+			ret = X86EMUL_UNHANDLEABLE;
+			break;
+		}
+		if (wrmsr_safe(msr, low, high)) {
+			ret = X86EMUL_UNHANDLEABLE;
+			break;
+		}
+		break;
+	case MSR_SYSCALL_MASK:
+	case MSR_LSTAR:
+	case MSR_CSTAR:
+	case MSR_TSC_AUX:
+	case MSR_STAR:
+	case MSR_IA32_TSX_CTRL: {
+		int slot;
+		u64 cur;
+
+		BUG_ON(!pkvm_cpu_initialized(vcpu->cpu));
+
+		slot = kvm_find_user_return_msr(msr);
+		if (slot >= 0) {
+			cur = kvm_get_user_return_msr(slot);
+			if (val != cur) {
+				pkvm_warn("Host attempt to modify user-return MSR 0x%x: 0x%llx (expected 0x%llx)\n",
+					  msr, val, cur);
+				ret = X86EMUL_UNHANDLEABLE;
+				break;
+			}
+		}
+
+		if (wrmsr_safe(msr, low, high)) {
+			ret = X86EMUL_UNHANDLEABLE;
+			break;
+		}
+		break;
+	}
 	case MSR_IA32_APICBASE:
 	case APIC_BASE_MSR ... APIC_BASE_MSR + 0xff:
 		if (pkvm_lapic_msr_write(msr, val))
@@ -219,6 +262,18 @@ static int handle_xsetbv(struct kvm_vcpu *vcpu)
 	u32 eax = (u32)(vcpu->arch.regs[VCPU_REGS_RAX] & -1u);
 	u32 edx = (u32)(vcpu->arch.regs[VCPU_REGS_RDX] & -1u);
 	u32 ecx = (u32)(vcpu->arch.regs[VCPU_REGS_RCX] & -1u);
+
+	BUG_ON(!pkvm_cpu_initialized(vcpu->cpu));
+
+	if (ecx == XCR_XFEATURE_ENABLED_MASK) {
+		u64 xcr0 = (u64)eax | ((u64)edx << 32);
+
+		if (xcr0 != kvm_host.xcr0) {
+			pkvm_warn("Host attempt to modify XCR0: 0x%llx (expected 0x%llx)\n",
+				  xcr0, kvm_host.xcr0);
+			goto fault;
+		}
+	}
 
 	asm goto("1: xsetbv\n\t"
 		 _ASM_EXTABLE(1b, %l[fault])

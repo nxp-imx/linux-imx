@@ -121,9 +121,9 @@ int pkvm_context_mapping(struct intel_iommu *iommu, struct device_domain_info *i
 int pkvm_pasid_table_setup(struct intel_iommu *iommu, struct device_domain_info *info,
 			   u8 bus, u8 devfn);
 int pkvm_pasid_setup_fl(struct device_domain_info *info, phys_addr_t fsptptr,
-			u32 pasid, u16 did, u16 old_did, int flags);
+			u32 pasid, u16 did, int flags);
 int pkvm_pasid_setup_sl(struct device_domain_info *info, phys_addr_t ssptptr,
-			u32 pasid, u16 did, u16 old_did);
+			u32 pasid, u16 did);
 int pkvm_pasid_teardown(struct device_domain_info *info, u32 pasid);
 int pkvm_alloc_domain(struct device_domain_info *info, struct dmar_domain *domain);
 int pkvm_free_domain(struct dmar_domain *domain);
@@ -185,19 +185,15 @@ bool pkvm_iommu_paging_structure_coherency(void);
 
 struct dmar_domain *pkvm_alloc_iommu_domain(struct alloc_domain_data *data,
 					    bool need_iotlb_sync_map);
-struct dmar_domain *pkvm_get_iommu_domain(void *pgd);
-struct dmar_domain *pkvm_get_iommu_domain_noref(void *pgd);
+struct dmar_domain *pkvm_get_iommu_domain(void *pgd, u16 did,
+					  struct intel_iommu *iommu);
+struct dmar_domain *pkvm_get_iommu_domain_noref(void *pgd, u16 did);
 void pkvm_put_iommu_domain(struct dmar_domain *domain);
-int pkvm_free_iommu_domain(struct dmar_domain *domain, struct pkvm_memcache *teardown_mc);
+int pkvm_free_iommu_domain(u64 pgd_gpa, struct pkvm_memcache *teardown_mc);
 
 struct cache_tag *pkvm_alloc_cache_tag(void);
 void pkvm_free_cache_tag(struct cache_tag *cache_tag);
 void pkvm_iommu_pt_flush(unsigned long paddr, unsigned long size);
-
-int pkvm_get_domain_cache_tag_assign(void *pgd, int did, u32 pasid,
-				     struct device_domain_info *info);
-void pkvm_put_domain_cache_tag_unassign(void *pgd, int did, u32 pasid,
-					struct device_domain_info *info);
 
 int pkvm_intel_iommu_init(void);
 
@@ -261,13 +257,13 @@ static inline int pkvm_pasid_table_setup(struct intel_iommu *iommu,
 }
 static inline int pkvm_pasid_setup_fl(struct device_domain_info *info,
 				      phys_addr_t fsptptr, u32 pasid,
-				      u16 did, u16 old_did, int flags)
+				      u16 did, int flags)
 {
 	return -EOPNOTSUPP;
 }
 static inline int pkvm_pasid_setup_sl(struct device_domain_info *info,
 				      phys_addr_t ssptptr, u32 pasid,
-				      u16 did, u16 old_did)
+				      u16 did)
 {
 	return -EOPNOTSUPP;
 }

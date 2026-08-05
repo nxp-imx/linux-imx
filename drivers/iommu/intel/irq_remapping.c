@@ -1021,6 +1021,10 @@ static void disable_irq_remapping(void)
 	struct dmar_drhd_unit *drhd;
 	struct intel_iommu *iommu = NULL;
 
+	/* pKVM doesn't support S3 suspend. */
+	if (WARN_ON(pkvm_enabled()))
+		return;
+
 	/*
 	 * Disable Interrupt-remapping for all the DRHD's now.
 	 */
@@ -1043,6 +1047,10 @@ static int reenable_irq_remapping(int eim)
 	struct dmar_drhd_unit *drhd;
 	bool setup = false;
 	struct intel_iommu *iommu = NULL;
+
+	/* pKVM doesn't support S3 resume. */
+	if (WARN_ON(pkvm_enabled()))
+		return -EOPNOTSUPP;
 
 	for_each_iommu(iommu, drhd)
 		if (iommu->qi)

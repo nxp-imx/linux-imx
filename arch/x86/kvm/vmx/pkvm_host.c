@@ -605,7 +605,12 @@ static int pkvm_check_processor_compat(void)
 
 static int pkvm_enable_virtualization_cpu(void)
 {
-	return pkvm_hypercall(enable_virtualization_cpu);
+	/*
+	 * There is nothing to do here as virtualization was already enabled
+	 * during pKVM initialization and is never disabled or re-enabled later.
+	 */
+
+	return 0;
 }
 
 static void pkvm_disable_virtualization_cpu(void)

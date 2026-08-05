@@ -3,6 +3,7 @@
 #include <asm/fpu/xstate.h>
 #include <asm/kvm_pkvm.h>
 #include "../cpuid.h"
+#include "../x86.h"
 #include "early_alloc.h"
 #include "fpu.h"
 #include "init.h"
@@ -300,6 +301,8 @@ int pkvm_init(struct pkvm_mem_info infos[], int nr_infos)
 		return ret;
 
 	pkvm_vcpu_perf_init(this_cpu_read(host_vcpu));
+
+	kvm_user_return_msr_cpu_online();
 
 	this_cpu_write(cpu_initialized, true);
 	return 0;
