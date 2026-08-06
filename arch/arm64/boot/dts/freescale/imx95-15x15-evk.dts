@@ -613,7 +613,7 @@
 	reset-gpio = <&gpio5 13 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_m2_pwr>;
 	supports-clkreq;
-	status = "disabled";
+	status = "okay";
 };
 
 &pcie0_ep {
