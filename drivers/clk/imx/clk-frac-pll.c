@@ -119,57 +119,123 @@ static unsigned long clk_pll_recalc_rate(struct clk_hw *hw,
 	return rate;
 }
 
+/*
+ * Fractional-N PLL operating limits (from PLL block guide, Table 1):
+ *
+ *   REF input frequency:          10 MHz to 300 MHz  (before DIVR)
+ *   Post-DIVR reference (parent): 5 MHz to 7.5 MHz
+ *   VCO frequency:                2000 MHz to 4000 MHz
+ *   PLLOUT output frequency:      31.25 MHz to 2000 MHz
+ *
+ * In the Linux driver the parent_rate passed to set_rate/determine_rate
+ * is already the post-DIVR reference (output of video_pll1_ref_div),
+ * so it must be in [PLL_REF_MIN_FREQ, PLL_REF_MAX_FREQ].
+ */
+#define PLL_VCO_MIN_FREQ	2000000000ULL
+#define PLL_VCO_MAX_FREQ	4000000000ULL
+/* DIVQ range is 2..64 (even), so output range is [VCO_MIN/64 .. VCO_MAX/2]. */
+#define PLL_OUT_MIN_FREQ	(PLL_VCO_MIN_FREQ / 64)	/* 31.25 MHz */
+#define PLL_OUT_MAX_FREQ	(PLL_VCO_MAX_FREQ / 2)	/* 2000 MHz */
+#define PLL_REF_MIN_FREQ	   5000000ULL
+#define PLL_REF_MAX_FREQ	   7500000ULL
+/*
+ * Select the OUTPUT_DIV register value (divq_reg) such that the internal VCO
+ * frequency (pllout * divq) falls inside [PLL_VCO_MIN_FREQ, PLL_VCO_MAX_FREQ].
+ * divq = (divq_reg + 1) * 2, range [2..64].
+ * Iterate from the smallest divq upward; take the first value that brings
+ * VCO >= VCO_MIN. If even divq=64 leaves VCO below VCO_MIN (very low rate),
+ * return 31 (divq=64) as the best effort and let the caller warn.
+ */
+static u32 clk_pll_calc_divq_reg(unsigned long rate)
+{
+	u32 divq_reg;
+
+	for (divq_reg = 0; divq_reg <= 31; divq_reg++) {
+		u64 vco = (u64)rate * ((divq_reg + 1) * 2);
+
+		if (vco >= PLL_VCO_MIN_FREQ)
+			break;
+	}
+	return divq_reg;
+}
+
 static int clk_pll_determine_rate(struct clk_hw *hw,
 				  struct clk_rate_request *req)
 {
 	u64 parent_rate = req->best_parent_rate;
-	u32 divff, divfi;
-	u64 temp64;
+	u32 divff, divfi, divq_reg;
+	u64 temp64, prate8, divq;
 
-	parent_rate *= 8;
-	req->rate *= 2;
-	temp64 = req->rate;
-	do_div(temp64, parent_rate);
+	divq_reg = clk_pll_calc_divq_reg(req->rate);
+	divq = (u64)(divq_reg + 1) * 2;
+
+	prate8 = parent_rate * 8;
+	temp64 = (u64)req->rate * divq;
+	do_div(temp64, prate8);
 	divfi = temp64;
-	temp64 = req->rate - divfi * parent_rate;
+	temp64 = (u64)req->rate * divq - (u64)divfi * prate8;
 	temp64 *= PLL_FRAC_DENOM;
-	do_div(temp64, parent_rate);
+	do_div(temp64, prate8);
 	divff = temp64;
 
-	temp64 = parent_rate;
-	temp64 *= divff;
+	temp64 = prate8 * divff;
 	do_div(temp64, PLL_FRAC_DENOM);
 
-	req->rate = parent_rate * divfi + temp64;
-
-	req->rate = req->rate / 2;
+	temp64 += prate8 * divfi;
+	do_div(temp64, divq);
+	req->rate = temp64;
 
 	return 0;
 }
 
 /*
- * To simplify the clock calculation, we can keep the 'PLL_OUTPUT_VAL' at zero
- * (means the PLL output will be divided by 2). So the PLL output can use
- * the below formula:
- * pllout = parent_rate * 8 / 2 * DIVF_VAL;
- * where DIVF_VAL = 1 + DIVFI + DIVFF / 2^24.
+ * PLL output formula:
+ * pllout = parent_rate * 8 * DIVF_VAL / divq
+ * where DIVF_VAL = divfi + divff / 2^24
+ * and divq = (OUTPUT_DIV + 1) * 2.
+ * Choose the smallest OUTPUT_DIV that keeps VCO >= PLL_VCO_MIN_FREQ.
  */
 static int clk_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 			    unsigned long parent_rate)
 {
 	struct clk_frac_pll *pll = to_clk_frac_pll(hw);
-	u32 val, divfi, divff;
-	u64 temp64;
+	u32 val, divfi, divff, divq_reg;
+	u64 prate8, temp64, divq, vco;
 	int ret;
 
-	parent_rate *= 8;
-	rate *= 2;
-	divfi = rate / parent_rate;
-	temp64 = parent_rate * divfi;
-	temp64 = rate - temp64;
+	divq_reg = clk_pll_calc_divq_reg(rate);
+	divq = (u64)(divq_reg + 1) * 2;
+
+	prate8 = (u64)parent_rate * 8;
+	temp64 = (u64)rate * divq;
+	do_div(temp64, prate8);
+	divfi = temp64;
+	temp64 = (u64)rate * divq - (u64)divfi * prate8;
 	temp64 *= PLL_FRAC_DENOM;
-	do_div(temp64, parent_rate);
+	do_div(temp64, prate8);
 	divff = temp64;
+
+	vco = (u64)rate * divq;
+
+	/* Enforce PLL operating limits (PLL block guide, Table 1). */
+	if (rate < PLL_OUT_MIN_FREQ || rate > PLL_OUT_MAX_FREQ)
+		pr_warn("%s: output rate %lu Hz out of range [%llu, %llu]\n",
+			clk_hw_get_name(hw), rate,
+			PLL_OUT_MIN_FREQ, PLL_OUT_MAX_FREQ);
+
+	if (parent_rate < PLL_REF_MIN_FREQ || parent_rate > PLL_REF_MAX_FREQ)
+		pr_warn("%s: post-DIVR ref rate %lu Hz out of range [%llu, %llu]\n",
+			clk_hw_get_name(hw), parent_rate,
+			PLL_REF_MIN_FREQ, PLL_REF_MAX_FREQ);
+
+	if (vco < PLL_VCO_MIN_FREQ || vco > PLL_VCO_MAX_FREQ)
+		pr_warn("%s: VCO %llu Hz out of range [%llu, %llu]\n",
+			clk_hw_get_name(hw), vco,
+			PLL_VCO_MIN_FREQ, PLL_VCO_MAX_FREQ);
+
+	pr_debug("%s: rate=%lu parent=%lu divq_reg=%u divq=%llu divfi=%u divff=%u vco=%llu\n",
+		 clk_hw_get_name(hw), rate, parent_rate,
+		 divq_reg, divq, divfi, divff, vco);
 
 	val = readl_relaxed(pll->base + PLL_CFG1);
 	val &= ~(PLL_FRAC_DIV_MASK | PLL_INT_DIV_MASK);
@@ -177,17 +243,18 @@ static int clk_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 	writel_relaxed(val, pll->base + PLL_CFG1);
 
 	val = readl_relaxed(pll->base + PLL_CFG0);
-	val &= ~0x1f;
+	val &= ~PLL_OUTPUT_DIV_MASK;
+	val |= divq_reg;
 	writel_relaxed(val, pll->base + PLL_CFG0);
 
-	/* Set the NEV_DIV_VAL to reload the DIVFI and DIVFF */
+	/* Set the PLL_NEWDIV_VAL to reload the DIVFI and DIVFF */
 	val = readl_relaxed(pll->base + PLL_CFG0);
 	val |= PLL_NEWDIV_VAL;
 	writel_relaxed(val, pll->base + PLL_CFG0);
 
 	ret = clk_wait_ack(pll);
 
-	/* clear the NEV_DIV_VAL */
+	/* clear the PLL_NEWDIV_VAL */
 	val = readl_relaxed(pll->base + PLL_CFG0);
 	val &= ~PLL_NEWDIV_VAL;
 	writel_relaxed(val, pll->base + PLL_CFG0);
