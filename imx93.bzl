@@ -197,6 +197,7 @@ def define_imx93():
             "Image",
             "Image.lz4",
             "System.map",
+            "vmlinux",
         ] + _IMX93_DTB_OUTS,
         arch = "arm64",
         # Standalone build (not GKI mixed build)
@@ -208,6 +209,7 @@ def define_imx93():
         make_goals = [
             "Image",
             "Image.lz4",
+            "vmlinux",
             "modules",
             "dtbs",
         ],
