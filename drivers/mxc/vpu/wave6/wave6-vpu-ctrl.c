@@ -287,23 +287,53 @@ static void wave6_vpu_ctrl_writel(struct device *dev, u32 addr, u32 data)
 	writel(data, ctrl->reg_base + addr);
 }
 
+/*
+ * Size actually handed to the DMA coherent allocator.
+ *
+ * wave6 cores are limited to 32-bit DMA, so coherent allocations must land in
+ * ZONE_DMA. On imx95 nearly all of ZONE_DMA is the reserved CMA area; the
+ * non-CMA remainder is tiny and fragments under heavy decode-session churn,
+ * so small allocations (e.g. the FBC/MV aux tables) start failing.
+ * dma_alloc_contiguous() only serves the default CMA pool when
+ * size > PAGE_SIZE (see "if (size <= PAGE_SIZE) return NULL"); a request of a
+ * single page or less falls back to the buddy allocator and misses CMA.
+ *
+ * The reserved CMA on imx95 already satisfies the 32-bit constraint, so pad
+ * sub-page allocations up to two pages to force them through CMA and off the
+ * exhausted non-CMA ZONE_DMA path. vb->size is left untouched because the
+ * hardware derives table offsets from it; only the size passed to
+ * dma_alloc_coherent()/dma_free_coherent() (and the matching memory-usage
+ * accounting) is padded, and both alloc and free use this same deterministic
+ * helper so the free size always matches the alloc size.
+ */
+static size_t wave6_dma_alloc_size(size_t size)
+{
+	if (size <= PAGE_SIZE)
+		return 2 * PAGE_SIZE;
+
+	return size;
+}
+
 int wave6_alloc_dma(struct device *dev, struct vpu_buf *vb)
 {
+	size_t dma_size;
 	void *vaddr;
 	dma_addr_t daddr;
 
 	if (!vb || !vb->size)
 		return -EINVAL;
 
-	vaddr = dma_alloc_coherent(dev, vb->size, &daddr, GFP_KERNEL);
+	dma_size = wave6_dma_alloc_size(vb->size);
+
+	vaddr = dma_alloc_coherent(dev, dma_size, &daddr, GFP_KERNEL);
 	if (!vaddr)
 		return -ENOMEM;
 
 	if (vb->recorder) {
 		if (vb->label)
-			imx_mur_long_new_and_add(vb->recorder, vb->size, vb->label);
+			imx_mur_long_new_and_add(vb->recorder, dma_size, vb->label);
 		else
-			imx_mur_long_add(vb->recorder, vb->size);
+			imx_mur_long_add(vb->recorder, dma_size);
 	}
 
 	vb->vaddr = vaddr;
@@ -316,17 +346,21 @@ EXPORT_SYMBOL_GPL(wave6_alloc_dma);
 
 void wave6_free_dma(struct vpu_buf *vb)
 {
+	size_t dma_size;
+
 	if (!vb || !vb->size || !vb->vaddr)
 		return;
 
+	dma_size = wave6_dma_alloc_size(vb->size);
+
 	if (vb->recorder) {
 		if (vb->label)
-			imx_mur_long_sub_and_del(vb->recorder, vb->size);
+			imx_mur_long_sub_and_del(vb->recorder, dma_size);
 		else
-			imx_mur_long_sub(vb->recorder, vb->size);
+			imx_mur_long_sub(vb->recorder, dma_size);
 	}
 
-	dma_free_coherent(vb->dev, vb->size, vb->vaddr, vb->daddr);
+	dma_free_coherent(vb->dev, dma_size, vb->vaddr, vb->daddr);
 	memset(vb, 0, sizeof(*vb));
 }
 EXPORT_SYMBOL_GPL(wave6_free_dma);
