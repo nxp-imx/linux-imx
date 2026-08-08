@@ -403,6 +403,7 @@ imx8mp-evk-revb4-rm692c9-dtbs := imx8mp-evk-rm692c9.dtb imx8mp-evk-revb4.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-rm67191.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-it6263-lvds-dual-channel.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-pcie.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-pcie-ep.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-ecspi-slave.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-jdi-wuxga-lvds-panel.dtb
