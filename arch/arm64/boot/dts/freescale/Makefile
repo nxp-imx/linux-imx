@@ -771,7 +771,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-pmic-pf0900-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx937-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx937-frdm.dtb
 
-imx937-evk-v2x-she0-dtbs := imx937-evk.dtb imx952-evk-v2x-she0.dtbo
+imx937-evk-v2x-she0-dtbs := imx937-evk.dtb imx952-v2x-she0.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx937-evk-v2x-she0.dtb
 
 imx937-frdm-aud-hat-dtbs := imx937-frdm.dtb imx952-frdm-aud-hat.dtbo
@@ -1382,7 +1382,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-root.dtb imx952-jailhouse-inmate.dtb
 imx952-evk-adv7535-dtbs := imx952-evk.dtb imx952-evk-adv7535.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535.dtb
 
-imx952-evk-v2x-she0-dtbs := imx952-evk.dtb imx952-evk-v2x-she0.dtbo
+imx952-evk-v2x-she0-dtbs := imx952-evk.dtb imx952-v2x-she0.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-v2x-she0.dtb
 
 imx952-evk-it6263-lvds0-dtbs := imx952-evk.dtb imx952-evk-it6263-lvds0.dtbo
@@ -1542,6 +1542,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-os08a20-csi0-4lanes-mqs.dtb
 imx952-evk-adv7535-rpmsg-dtbs := imx952-evk-rpmsg.dtb imx952-evk-adv7535.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx952-frdm.dtb
+
+imx952-frdm-v2x-she0-dtbs := imx952-frdm.dtb imx952-v2x-she0.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-v2x-she0.dtb
 
 imx952-frdm-os08a20-csi0-4lanes-dtbs := imx952-frdm.dtb imx952-frdm-os08a20-csi0-4lanes.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-os08a20-csi0-4lanes.dtb
