@@ -973,6 +973,11 @@
   vlan_vids_add_by_dev
   vlan_vids_del_by_dev
 
+# required by pkvm_iommu_temp.ko
+  kvm_iommu_register_driver
+  kvm_iommu_register_hyp_ops
+  __pkvm_load_el2_module
+
 # required by pl111_drm.ko
   __clk_get_name
   clk_hw_get_parent
@@ -1063,6 +1068,7 @@
 
 # required by snd-aloop.ko
   devm_kstrdup
+  hrtimer_try_to_cancel
   snd_card_ref
   snd_card_rw_proc_new
   snd_ctl_boolean_mono_info
@@ -1531,9 +1537,3 @@
 # preserved by --additions-only
   __drm_debug_trace
   __drm_printfn_trace
-
-# required by pkvm_iommu_temp.ko
-  __pkvm_load_el2_module
-  kvm_iommu_register_driver
-  kvm_iommu_register_hyp_ops
-

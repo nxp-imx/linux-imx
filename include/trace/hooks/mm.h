@@ -823,6 +823,9 @@ DECLARE_HOOK(android_vh_check_swap_entries_free,
 DECLARE_HOOK(android_vh_folio_alloc_swap_finish,
 	TP_PROTO(struct folio *folio, swp_entry_t *entry, bool bypass_fast),
 	TP_ARGS(folio, entry, bypass_fast));
+DECLARE_RESTRICTED_HOOK(android_rvh_read_swap_cache_async_timeout,
+	TP_PROTO(size_t *count, bool *skip),
+	TP_ARGS(count, skip), 2);
 #endif /* _TRACE_HOOK_MM_H */
 
 /* This part must be outside protection */

@@ -24,6 +24,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_cpufreq_transition,
 	TP_PROTO(struct cpufreq_policy *policy),
 	TP_ARGS(policy), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_cpufreq_create_policy,
+	TP_PROTO(struct cpufreq_policy *policy),
+	TP_ARGS(policy), 1);
+
 DECLARE_HOOK(android_vh_cpufreq_acct_update_power,
 	TP_PROTO(u64 cputime, struct task_struct *p, unsigned int state),
 	TP_ARGS(cputime, p, state));

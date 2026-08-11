@@ -124,6 +124,8 @@
   __traceiter_android_rvh_udpv6_recvmsg
   __traceiter_android_rvh_udpv6_sendmsg
   __traceiter_android_rvh_percpu_rwsem_wait_complete
+  __traceiter_android_rvh_vmscan_kswapd_done
+  __traceiter_android_rvh_vmscan_kswapd_wake
   __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_alter_rwsem_list_add
   __traceiter_android_vh_bd_link_disk_holder
@@ -191,6 +193,7 @@
   __traceiter_android_vh_oom_swapmem_gather_finish
   __traceiter_android_vh_oom_swapmem_gather_init
   __traceiter_android_vh_page_cache_ra_mark
+  __traceiter_android_vh_page_referenced_check_bypass
   __traceiter_android_vh_pick_swap_device_bypass
   __traceiter_android_vh_ra_alloc_retry
   __traceiter_android_vh_record_rwsem_reader_owned
@@ -233,6 +236,7 @@
   __traceiter_tcp_retransmit_skb
   __traceiter_workqueue_execute_end
   __traceiter_workqueue_execute_start
+  __traceiter_signal_generate
   __traceiter_sys_exit
   __tracepoint_android_rvh_alloc_and_link_pwqs
   __traceiter_task_newtask
@@ -276,6 +280,8 @@
   __tracepoint_android_rvh_udpv6_recvmsg
   __tracepoint_android_rvh_udpv6_sendmsg
   __tracepoint_android_rvh_percpu_rwsem_wait_complete
+  __tracepoint_android_rvh_vmscan_kswapd_done
+  __tracepoint_android_rvh_vmscan_kswapd_wake
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_alter_rwsem_list_add
   __tracepoint_android_vh_bd_link_disk_holder
@@ -343,6 +349,7 @@
   __tracepoint_android_vh_oom_swapmem_gather_finish
   __tracepoint_android_vh_oom_swapmem_gather_init
   __tracepoint_android_vh_page_cache_ra_mark
+  __tracepoint_android_vh_page_referenced_check_bypass
   __tracepoint_android_vh_pick_swap_device_bypass
   __tracepoint_android_vh_ra_alloc_retry
   __tracepoint_android_vh_record_rwsem_reader_owned
@@ -385,6 +392,7 @@
   __tracepoint_tcp_retransmit_skb
   __tracepoint_workqueue_execute_end
   __tracepoint_workqueue_execute_start
+  __tracepoint_signal_generate
   __tracepoint_sys_exit
   __tracepoint_task_newtask
   ucsi_send_command

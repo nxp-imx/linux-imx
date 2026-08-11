@@ -68,6 +68,9 @@ struct hyp_arm_smmu_v3_nested_device {
 	u32			gbpa;
 	unsigned long		evtq_base;
 	unsigned long		priq_base;
+	/* Order smmu.lock => host_mmu.lock => smmu.hw_lock */
+	u32			hw_lock;
+	bool			active;
 };
 
 extern size_t kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_count);
@@ -75,6 +78,30 @@ extern size_t kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_count);
 
 extern struct hyp_arm_smmu_v3_nested_device *kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_smmus);
 #define kvm_hyp_arm_smmu_v3_smmus kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_smmus)
+
+#ifdef __KVM_NVHE_HYPERVISOR__
+static inline hyp_spinlock_t *kvm_smmu_get_hw_lock(struct hyp_arm_smmu_v3_nested_device *smmu)
+{
+	/* See struct kvm_hyp_iommu */
+	BUILD_BUG_ON(sizeof(smmu->hw_lock) != sizeof(hyp_spinlock_t));
+	return (hyp_spinlock_t *)(&smmu->hw_lock);
+}
+
+static inline void kvm_smmu_hw_lock_init(struct hyp_arm_smmu_v3_nested_device *smmu)
+{
+	hyp_spin_lock_init(kvm_smmu_get_hw_lock(smmu));
+}
+
+static inline void kvm_smmu_hw_lock(struct hyp_arm_smmu_v3_nested_device *smmu)
+{
+	hyp_spin_lock(kvm_smmu_get_hw_lock(smmu));
+}
+
+static inline void kvm_smmu_hw_unlock(struct hyp_arm_smmu_v3_nested_device *smmu)
+{
+	hyp_spin_unlock(kvm_smmu_get_hw_lock(smmu));
+}
+#endif /* __KVM_NVHE_HYPERVISOR__ */
 #endif
 
 #if IS_ENABLED(CONFIG_ARM_SMMU_V3_PKVM_PV)

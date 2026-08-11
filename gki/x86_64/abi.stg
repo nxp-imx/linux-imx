@@ -320539,6 +320539,15 @@ elf_symbol {
   full_name: "hrtimer_start_range_ns"
 }
 elf_symbol {
+  id: 0x49327479
+  name: "hrtimer_try_to_cancel"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0x6dcbcb0d
+  type_id: 0x93f39d0d
+  full_name: "hrtimer_try_to_cancel"
+}
+elf_symbol {
   id: 0x5af755ee
   name: "hwrng_register"
   is_defined: true
@@ -342797,6 +342806,7 @@ interface {
   symbol_id: 0xd54152db
   symbol_id: 0xcf82352c
   symbol_id: 0xfe586a82
+  symbol_id: 0x49327479
   symbol_id: 0x5af755ee
   symbol_id: 0xecce2e76
   symbol_id: 0xbc42110a

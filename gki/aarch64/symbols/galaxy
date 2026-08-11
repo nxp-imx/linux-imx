@@ -10,6 +10,7 @@
   crypto_alloc_acomp
   device_match_name
   __devm_alloc_percpu
+  dummy_irq_chip
   file_bdev
   filemap_fdatawrite_range_kick
   file_ra_state_init
@@ -25,6 +26,8 @@
   gpiod_cansleep
   gpio_device_find
   gpio_device_get_chip
+  __irq_domain_alloc_fwnode
+  irq_domain_free_fwnode
   I_BDEV
   kmsg_dump_get_line
   kmsg_dump_rewind
@@ -34,6 +37,13 @@
   mas_next
   mm_access
   panic_in_progress
+  phy_connect_direct
+  phy_find_first
+  phy_get_pause
+  phy_mii_ioctl
+  phy_set_asym_pause
+  phy_support_asym_pause
+  platform_get_ethdev_address
   prep_compound_page
   prep_new_hpage
   proc_set_size
@@ -208,6 +218,21 @@
   unregister_console
   unregister_die_notifier
   unregister_restart_handler
+  usbnet_change_mtu
+  usbnet_defer_kevent
+  usbnet_get_drvinfo
+  usbnet_get_endpoints
+  usbnet_get_link
+  usbnet_get_link_ksettings_mii
+  usbnet_get_msglevel
+  usbnet_nway_reset
+  usbnet_read_cmd
+  usbnet_read_cmd_nopm
+  usbnet_set_link_ksettings_mii
+  usbnet_set_msglevel
+  usbnet_write_cmd
+  usbnet_write_cmd_async
+  usbnet_write_cmd_nopm
   vfs_fsync_range
   yield
   start_creating_path
@@ -241,3 +266,6 @@
   locks_init_lock
   vfs_lock_file
   locks_alloc_lock
+  sha256
+  vfs_iter_read
+  vfs_iter_write

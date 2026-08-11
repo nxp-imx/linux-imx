@@ -1392,6 +1392,7 @@
   hrtimer_forward
   hrtimer_setup
   hrtimer_start_range_ns
+  hrtimer_try_to_cancel
   __hw_addr_init
   __hw_addr_sync
   __hw_addr_sync_dev

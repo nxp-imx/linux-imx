@@ -41,7 +41,6 @@
   blocking_notifier_chain_unregister
   bpf_trace_run1
   bpf_trace_run10
-  bpf_trace_run11
   bpf_trace_run2
   bpf_trace_run3
   bpf_trace_run4
@@ -744,6 +743,7 @@
   __register_chrdev
   register_chrdev_region
   register_die_notifier
+  register_kprobe
   register_netdev
   register_netdevice
   register_pm_notifier
@@ -891,6 +891,7 @@
   synchronize_rcu
   syscon_regmap_lookup_by_phandle
   sysfs_add_file_to_group
+  sysfs_add_link_to_group
   sysfs_create_bin_file
   sysfs_create_file_ns
   sysfs_create_files
@@ -976,6 +977,7 @@
   unpin_user_page
   __unregister_chrdev
   unregister_chrdev_region
+  unregister_kprobe
   unregister_netdev
   unregister_netdevice_queue
   unregister_pm_notifier
@@ -1077,7 +1079,12 @@
   __xa_insert
   xa_load
 
+# required by akkstub.ko
+  caches_clean_inval_pou
+  kick_all_cpus_sync
+
 # required by cfg80211.ko
+  bpf_trace_run11
   debugfs_change_name
   dev_change_net_namespace
   dev_close
@@ -1197,7 +1204,6 @@
   perf_pmu_unregister
   perf_report_aux_output_id
   platform_bus_type
-  sysfs_add_link_to_group
   sysfs_remove_file_from_group
   sysfs_remove_link_from_group
 
@@ -1530,9 +1536,6 @@
   __traceiter_error_report_end
   __tracepoint_error_report_end
 
-# required by exynos-mifgov.ko
-  __trace_puts
-
 # required by exynos-mpam.ko
   kobject_move
 
@@ -1561,8 +1564,6 @@
 
 # required by exynos-pm.ko
   pm_get_active_wakeup_sources
-  register_kprobe
-  unregister_kprobe
 
 # required by exynos-usb-audio-offloading.ko
   snd_ctl_add
@@ -1571,6 +1572,8 @@
   usb_altnum_to_altsetting
   usb_choose_configuration
   usb_ifnum_to_if
+  usb_offload_get
+  usb_offload_put
   xhci_get_endpoint_index
   xhci_get_ep_ctx
   xhci_sideband_add_endpoint
@@ -1610,6 +1613,8 @@
   console_trylock
   debugfs_create_u64
   devm_drm_panel_bridge_add_typed
+  dma_fence_chain_ops
+  dma_fence_chain_walk
   __do_once_done
   __do_once_start
   drm_add_edid_modes

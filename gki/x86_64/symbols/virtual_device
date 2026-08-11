@@ -860,6 +860,7 @@
 
 # required by snd-aloop.ko
   devm_kstrdup
+  hrtimer_try_to_cancel
   snd_card_ref
   snd_card_rw_proc_new
   snd_ctl_boolean_mono_info
