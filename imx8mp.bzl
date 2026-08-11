@@ -75,7 +75,6 @@ _IMX8MP_DTB_OUTS = [
 # These are applied on top of base DTB files
 _IMX8MP_DTBO_OUTS = [
     "arch/arm64/boot/dts/freescale/imx8mp-evk-revb4.dtbo",
-    "arch/arm64/boot/dts/freescale/imx8mp-evk-pcie.dtbo",
     "arch/arm64/boot/dts/freescale/imx8mp-frdm-waveshare-7inch-c-panel.dtbo",
 ]
 
