@@ -43,6 +43,7 @@
  * possibly emitted by the platform will be ignored.
  */
 
+#include <linux/delay.h>
 #include <linux/math.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -335,9 +336,15 @@ static void scmi_suspend_work_func(struct work_struct *work)
 		container_of(work, struct scmi_syspower_conf, suspend_work);
 
 	ret = pm_suspend(PM_SUSPEND_MEM);
+	if (ret == -EBUSY) {
+		msleep(100);
+		ret = pm_suspend(PM_SUSPEND_MEM);
+	}
 
-	if (ret)
+	if (ret) {
+		dev_err(sc->dev, "pm_suspend failed: %d\n", ret);
 		sc->state = SCMI_SYSPOWER_IDLE;
+	}
 }
 
 static int scmi_syspower_probe(struct scmi_device *sdev)
