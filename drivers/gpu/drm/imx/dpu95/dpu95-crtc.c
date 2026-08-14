@@ -379,6 +379,18 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 	}
 
 	if (!need_modeset && crtc->state->active) {
+		/*
+		 * Queue state event prior to waiting for ExtDst SHDLD done.
+		 * This makes sure that the event can be handled in the vblank
+		 * IRQ handler as soon as possible because vblank is enabled
+		 * early enough and otherwise it could be enabled too
+		 * late(after ExtDst SHDLD done). Note that DisEngCFG frame
+		 * complete IRQ(vblank IRQ) comes after ExtDst SHDLD IRQ comes
+		 * about a time duration of an entire vblank, so timing is
+		 * critical if the vblank time duration is short.
+		 */
+		dpu95_crtc_queue_state_event(crtc);
+
 		enable_irq(dpu_crtc->ed_cont_shdld_irq);
 
 		/*
@@ -390,13 +402,6 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 		DPU95_CRTC_WAIT_FOR_COMPLETION_TIMEOUT(ed_cont_shdld_done);
 
 		disable_irq(dpu_crtc->ed_cont_shdld_irq);
-
-		spin_lock_irq(&crtc->dev->event_lock);
-		if (crtc->state->event) {
-			drm_crtc_send_vblank_event(crtc, crtc->state->event);
-			crtc->state->event = NULL;
-		}
-		spin_unlock_irq(&crtc->dev->event_lock);
 
 		DPU95_CRTC_CHECK_FRAMEGEN_PRIMARY_FIFO(dpu_crtc->fg);
 	} else {
