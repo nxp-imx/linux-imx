@@ -1263,11 +1263,13 @@ int sec_mipi_dsim_check_pll_out(void *driver_private,
 	pix_clk = mode->clock;
 	bit_clk = DIV_ROUND_UP(pix_clk * bpp, dsim->lanes);
 
-	/* Increase bit clock frequency by 1% for 1080x2340@57Hz
-	 * to avoid display artifacts with some panels.
+	/* Increase bit clock frequency by 1% for 1080x2340@57Hz and
+	 * 1080x1920@60Hz to avoid display artifacts with some panels.
 	 */
-	if (mode->hdisplay == 1080 && mode->vdisplay == 2340 &&
-	    mode->clock == 148500 && bpp == 24 && dsim->lanes == 4) {
+	if ((mode->hdisplay == 1080 && mode->vdisplay == 2340 &&
+	     mode->clock == 148500 && bpp == 24 && dsim->lanes == 4) ||
+	    (mode->hdisplay == 1080 && mode->vdisplay == 1920 &&
+	     mode->clock == 132000 && bpp == 24 && dsim->lanes == 4)) {
 		bit_clk = DIV_ROUND_UP(bit_clk * 101, 100);
 		dev_dbg(dsim->dev, "adjusted fout: %u\n", bit_clk);
 	}
