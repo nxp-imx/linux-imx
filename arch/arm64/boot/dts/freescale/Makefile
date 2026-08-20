@@ -774,6 +774,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx937-frdm.dtb
 imx937-evk-v2x-she0-dtbs := imx937-evk.dtb imx952-v2x-she0.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx937-evk-v2x-she0.dtb
 
+imx937-frdm-pcie-ep-dtbs := imx937-frdm.dtb imx-pcie0-ep.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-pcie-ep.dtb
+
 imx937-frdm-v2x-she0-dtbs := imx937-frdm.dtb imx952-v2x-she0.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-v2x-she0.dtb
 
