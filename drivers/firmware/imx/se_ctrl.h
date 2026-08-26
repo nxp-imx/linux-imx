@@ -119,6 +119,14 @@ struct se_lg_fl_info {
 	struct path root;
 };
 
+struct mu_mem_info {
+	struct se_shared_mem shared_mem;
+	/* protects exclusive access to mu_mem */
+	struct mutex owner_lock;
+	/* current exclusive owner of mu_mem, or NULL */
+	struct se_if_device_ctx *owner_dev_ctx;
+};
+
 struct se_if_priv {
 	struct list_head priv_data;
 	struct device *dev;
@@ -152,7 +160,7 @@ struct se_if_priv {
 	struct mbox_chan *tx_chan, *rx_chan;
 
 	uint32_t flags;
-	struct se_shared_mem mu_mem;
+	struct mu_mem_info mu_mem;
 	struct gen_pool *mem_pool;
 	const struct se_if_defines *if_defs;
 	struct se_lg_fl_info lg_fl_info;

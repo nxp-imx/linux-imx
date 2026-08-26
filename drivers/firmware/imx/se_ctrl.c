@@ -1362,10 +1362,13 @@ static int se_dev_ctx_cpy_out_data(struct se_if_device_ctx *dev_ctx)
 		}
 
 		if (b_desc->shared_buf_ptr) {
-			if (dev_ctx->priv->mu_mem.pos)
-				memset_io(b_desc->shared_buf_ptr, 0, b_desc->size);
+			void *p = b_desc->shared_buf_ptr;
+
+			/* use memset_io() for IO-mapped memory, memset() otherwise. */
+			if (!virt_addr_valid(p))
+				memset_io((void __iomem *)p, 0, b_desc->size);
 			else
-				memset(b_desc->shared_buf_ptr, 0, b_desc->size);
+				memset(p, 0, b_desc->size);
 		}
 
 		list_del(&b_desc->link);
@@ -1385,6 +1388,7 @@ void se_dev_ctx_shared_mem_cleanup(struct se_if_device_ctx *dev_ctx)
 	struct se_shared_mem_mgmt_info *se_shared_mem_mgmt = &dev_ctx->se_shared_mem_mgmt;
 	struct list_head *pending_lists[] = {&se_shared_mem_mgmt->pending_in,
 						&se_shared_mem_mgmt->pending_out};
+	struct mu_mem_info *mu_mem = &dev_ctx->priv->mu_mem;
 	struct se_buf_desc *b_desc, *temp;
 	int i;
 
@@ -1393,10 +1397,13 @@ void se_dev_ctx_shared_mem_cleanup(struct se_if_device_ctx *dev_ctx)
 					 pending_lists[i], link) {
 
 			if (b_desc->shared_buf_ptr) {
-				if (dev_ctx->priv->mu_mem.pos)
-					memset_io(b_desc->shared_buf_ptr, 0, b_desc->size);
+				void *p = b_desc->shared_buf_ptr;
+
+				/* use memset_io() for IO-mapped memory, memset() otherwise. */
+				if (!virt_addr_valid(p))
+					memset_io((void __iomem *)p, 0, b_desc->size);
 				else
-					memset(b_desc->shared_buf_ptr, 0, b_desc->size);
+					memset(p, 0, b_desc->size);
 			}
 
 			list_del(&b_desc->link);
@@ -1405,6 +1412,13 @@ void se_dev_ctx_shared_mem_cleanup(struct se_if_device_ctx *dev_ctx)
 	}
 	se_shared_mem_mgmt->secure_mem.pos = 0;
 	se_shared_mem_mgmt->non_secure_mem.pos = 0;
+	/* Release the mu_mem lock if this context holds it. */
+	if (READ_ONCE(mu_mem->owner_dev_ctx) == dev_ctx) {
+		lockdep_assert_held(&mu_mem->owner_lock);
+		mu_mem->shared_mem.pos = 0;
+		WRITE_ONCE(mu_mem->owner_dev_ctx, NULL);
+		mutex_unlock(&mu_mem->owner_lock);
+	}
 }
 
 static int add_b_desc_to_pending_list(void *shared_ptr_with_pos,
@@ -1657,7 +1671,6 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 
 exit:
 	se_dev_ctx_shared_mem_cleanup(dev_ctx);
-	priv->mu_mem.pos = 0;
 
 	if (copy_to_user((void __user *)arg, &cmd_snd_rcv_rsp_info,
 			 sizeof(cmd_snd_rcv_rsp_info))) {
@@ -1735,16 +1748,86 @@ exit:
 	return err;
 }
 
+static void rollback_shared_mem_pos(struct se_if_device_ctx *dev_ctx, uint32_t flags, u32 length)
+{
+	struct se_shared_mem *shared_mem = NULL;
+	struct mu_mem_info *mu_mem = NULL;
+
+	if (flags & SE_IO_BUF_FLAGS_USE_MU_BUF) {
+		mu_mem = &dev_ctx->priv->mu_mem;
+		lockdep_assert_held(&mu_mem->owner_lock);
+		shared_mem = &mu_mem->shared_mem;
+	} else {
+		if ((flags & SE_IO_BUF_FLAGS_USE_SEC_MEM) &&
+		    (dev_ctx->priv->flags & SCU_MEM_CFG)) {
+			/* App requires to use secure memory for this buffer.*/
+			shared_mem = &dev_ctx->se_shared_mem_mgmt.secure_mem;
+		} else {
+			/* No specific requirement for this buffer. */
+			shared_mem = &dev_ctx->se_shared_mem_mgmt.non_secure_mem;
+		}
+	}
+
+	if (WARN_ON_ONCE(length > shared_mem->pos)) {
+		/*
+		 * Accounting is corrupt; reset pos and release the MU
+		 * owner_lock if this context holds it, so that no lock
+		 * leak occurs on this unexpected path.
+		 */
+		shared_mem->pos = 0;
+		if (mu_mem) {
+			WRITE_ONCE(mu_mem->owner_dev_ctx, NULL);
+			mutex_unlock(&mu_mem->owner_lock);
+		}
+		return;
+	}
+
+	shared_mem->pos -= length;
+	if (mu_mem && !shared_mem->pos) {
+		WRITE_ONCE(mu_mem->owner_dev_ctx, NULL);
+		mutex_unlock(&mu_mem->owner_lock);
+	}
+}
+
 int get_shared_mem_slot(struct se_if_device_ctx *dev_ctx, uint32_t flags,
 			u32 length, dma_addr_t *ele_dma_addr, void **ptr)
 {
 	struct se_shared_mem *shared_mem = NULL;
+	struct mu_mem_info *mu_mem = NULL;
 	u32 pos;
 
 	/* Select the shared memory to be used for this buffer. */
-	if (flags & SE_IO_BUF_FLAGS_USE_MU_BUF)
-		shared_mem = &dev_ctx->priv->mu_mem;
-	else {
+	if (flags & SE_IO_BUF_FLAGS_USE_MU_BUF) {
+		mu_mem = &dev_ctx->priv->mu_mem;
+		/*
+		 * Lockless read: READ_ONCE pairs with the WRITE_ONCE stores
+		 * in se_dev_ctx_shared_mem_cleanup() and
+		 * rollback_shared_mem_pos() to document intent and silence
+		 * KCSAN.  owner_dev_ctx is only written while owner_lock is
+		 * held, so once we hold the lock the value is stable.
+		 */
+		if (READ_ONCE(mu_mem->owner_dev_ctx) != dev_ctx) {
+			/*
+			 * owner_lock is acquired here and intentionally held
+			 * across all subsequent SE_IOCTL_SETUP_IOBUF calls from
+			 * this file descriptor.  It is released either by
+			 * se_dev_ctx_shared_mem_cleanup() after the matching
+			 * SE_IOCTL_CMD_SEND_RCV_RSP completes or the fd is
+			 * closed, or earlier by rollback_shared_mem_pos() when
+			 * all MU slots are freed on an error path.  This
+			 * serialises concurrent contexts sharing the same MU
+			 * memory buffer.
+			 *
+			 * pos is guaranteed zero whenever the lock is free
+			 * (every release path resets it first), so the explicit
+			 * reset here is intentionally omitted.
+			 */
+			if (mutex_lock_interruptible(&mu_mem->owner_lock))
+				return -ERESTARTSYS;
+			WRITE_ONCE(mu_mem->owner_dev_ctx, dev_ctx);
+		}
+		shared_mem = &mu_mem->shared_mem;
+	} else {
 		if ((flags & SE_IO_BUF_FLAGS_USE_SEC_MEM) &&
 		    (dev_ctx->priv->flags & SCU_MEM_CFG)) {
 			/* App requires to use secure memory for this buffer.*/
@@ -1767,12 +1850,26 @@ int get_shared_mem_slot(struct se_if_device_ctx *dev_ctx, uint32_t flags,
 			"%s: Not enough space in shared memory\n",
 			dev_ctx->devname);
 		if (flags & SE_IO_BUF_FLAGS_RESET_ON_ERROR) {
-			if (shared_mem->pos)
-				memset_io(shared_mem->ptr, 0, shared_mem->pos);
-			else
-				memset(shared_mem->ptr, 0, shared_mem->pos);
+			/*
+			 * Caller requested a full reset: wipe all previously
+			 * allocated slots, reset pos to zero, and release the
+			 * MU owner_lock so another context can take over.
+			 * Without this flag the earlier slots are still live;
+			 * leave pos and the lock alone so that
+			 * se_dev_ctx_shared_mem_cleanup() can release them
+			 * correctly when the command sequence unwinds.
+			 */
+			void *p = shared_mem->ptr;
 
+			if (!virt_addr_valid(p))
+				memset_io((void __iomem *)p, 0, shared_mem->pos);
+			else
+				memset(p, 0, shared_mem->pos);
 			shared_mem->pos = 0;
+			if (mu_mem && mu_mem->owner_dev_ctx == dev_ctx) {
+				WRITE_ONCE(mu_mem->owner_dev_ctx, NULL);
+				mutex_unlock(&mu_mem->owner_lock);
+			}
 		}
 		return -ENOMEM;
 	}
@@ -1792,8 +1889,14 @@ int get_shared_mem_slot(struct se_if_device_ctx *dev_ctx, uint32_t flags,
 		}
 	}
 
-	if (dev_ctx->priv->mu_mem.pos)
-		memset_io(shared_mem->ptr + pos, 0, length);
+	/* Use virt_addr_valid() to distinguish IO-mapped from normal memory,
+	 * consistent with every other memset site in this driver.  The earlier
+	 * "mu_mem && shared_mem->pos" test was unreliable because pos is
+	 * non-zero after the advance above, and zero on the very first alloc
+	 * into an IO-mapped MU buffer.
+	 */
+	if (!virt_addr_valid(shared_mem->ptr + pos))
+		memset_io((void __iomem *)(shared_mem->ptr + pos), 0, length);
 	else
 		memset(shared_mem->ptr + pos, 0, length);
 
@@ -1807,8 +1910,8 @@ int get_shared_mem_slot(struct se_if_device_ctx *dev_ctx, uint32_t flags,
 static int se_ioctl_setup_iobuf_handler(struct se_if_device_ctx *dev_ctx,
 					u64 arg)
 {
-	void *dma_buf_ptr = NULL;
 	struct se_ioctl_setup_iobuf io = {0};
+	void *dma_buf_ptr = NULL;
 	int err = 0;
 
 	if (copy_from_user(&io, (u8 __user *)arg, sizeof(io))) {
@@ -1873,6 +1976,18 @@ copy:
 		goto exit;
 	}
 exit:
+	/* Only roll back the shared memory slot on error; on the success
+	 * path the b_desc linked by add_b_desc_to_pending_list() owns the
+	 * slot and se_dev_ctx_shared_mem_cleanup() will release it later.
+	 */
+	if (dma_buf_ptr && err) {
+		if (!virt_addr_valid(dma_buf_ptr))
+			memset_io((void __iomem *)dma_buf_ptr, 0, io.length);
+		else
+			memset(dma_buf_ptr, 0, io.length);
+		rollback_shared_mem_pos(dev_ctx, io.flags, io.length);
+	}
+
 	return err;
 }
 
@@ -2455,13 +2570,24 @@ static int se_if_probe(struct platform_device *pdev)
 
 	if (info->mu_buff_size) {
 		/* TODO: to get func get_mu_buf(), part of imx-mailbox.c */
-		priv->mu_mem.ptr = get_mu_buf(priv->tx_chan);
-		priv->mu_mem.size = info->mu_buff_size;
-		priv->mu_mem.dma_addr = (u64)priv->mu_mem.ptr;
+		priv->mu_mem.shared_mem.ptr = get_mu_buf(priv->tx_chan);
+		priv->mu_mem.shared_mem.size = info->mu_buff_size;
+		priv->mu_mem.shared_mem.dma_addr = (u64)priv->mu_mem.shared_mem.ptr;
 	}
 	mutex_init(&priv->se_if_cmd_lock);
 	spin_lock_init(&priv->clbk_rx_lock);
 	mutex_init(&priv->se_msg_sq_ctl.se_msg_sq_lk);
+
+	/*
+	 * Initialise the mu_mem exclusive-access mutex and clear the owner
+	 * pointer.  mu_mem_lock serialises concurrent SE_IOCTL_SETUP_IOBUF
+	 * calls from different file descriptors so that only one context at
+	 * a time can allocate slots in the MU shared memory buffer.
+	 * mu_mem_owner records which se_if_device_ctx currently holds the
+	 * lock; NULL means the buffer is free.
+	 */
+	mutex_init(&priv->mu_mem.owner_lock);
+	priv->mu_mem.owner_dev_ctx = NULL;
 
 	/* Initialize circuit breaker state */
 	atomic_set(&priv->fw_busy, 0);
