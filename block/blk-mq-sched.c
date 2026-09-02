@@ -553,7 +553,7 @@ int blk_mq_alloc_sched_res(struct request_queue *q,
 	struct blk_mq_tag_set *set = q->tag_set;
 
 	res->et = blk_mq_alloc_sched_tags(set, nr_hw_queues,
-			blk_mq_default_nr_requests(set));
+			blk_mq_default_nr_requests(q));
 	if (!res->et)
 		return -ENOMEM;
 

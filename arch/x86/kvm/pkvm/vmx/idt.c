@@ -15,9 +15,6 @@ static void handle_nmi(struct pt_regs *regs, int vector, bool has_error_code)
 	u64 cur_vmcs_pa = vmcs_store();
 	bool is_host_vmcs;
 
-	/* There should always be a loaded VMCS, otherwise it is a code bug. */
-	BUG_ON(!VALID_PAGE(cur_vmcs_pa));
-
 	/* Switch to the host VMCS if the current one is not for host. */
 	is_host_vmcs = (cur_vmcs_pa == __pkvm_pa(vmx->loaded_vmcs->vmcs));
 	if (!is_host_vmcs)
@@ -38,7 +35,7 @@ static void handle_nmi(struct pt_regs *regs, int vector, bool has_error_code)
 	request_host_immediate_exit(vmx);
 
 	/* Restore to the previous VMCS if it is not for host. */
-	if (!is_host_vmcs)
+	if (!is_host_vmcs && VALID_PAGE(cur_vmcs_pa))
 		vmcs_load(__pkvm_va(cur_vmcs_pa));
 }
 

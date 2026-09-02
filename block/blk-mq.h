@@ -135,10 +135,16 @@ static inline struct blk_mq_hw_ctx *blk_mq_map_queue(blk_opf_t opf,
  * 128, since we don't split into sync/async like the old code
  * did. Additionally, this is a per-hw queue depth.
  */
-static inline unsigned int blk_mq_default_nr_requests(
-		struct blk_mq_tag_set *set)
+static inline unsigned int blk_mq_default_nr_requests(struct request_queue *q)
 {
-	return 2 * min_t(unsigned int, set->queue_depth, BLKDEV_DEFAULT_RQ);
+	struct blk_mq_tag_set *set = q->tag_set;
+	u32 nr = min_t(unsigned int, set->queue_depth, BLKDEV_DEFAULT_RQ);
+
+	/*
+	 * Only double the queue depth if ZWOR is not supported because
+	 * otherwise a deadlock might occur.
+	 */
+	return blk_use_zwor(q) ? nr : 2 * nr;
 }
 
 /*
@@ -444,8 +450,7 @@ static inline struct mutex *blk_mq_zwp_mutex(struct blk_mq_hw_ctx *hctx)
 	 * zoned writes is disabled or if zone write order restore is supported,
 	 * do not serialize dispatch operations.
 	 */
-	if (!blk_queue_is_zoned(q) || !blk_pipeline_zwr(q) ||
-	    (q->limits.features & BLK_FEAT_ZWOR))
+	if (!blk_queue_is_zoned(q) || !blk_pipeline_zwr(q) || blk_use_zwor(q))
 		return NULL;
 
 	/*

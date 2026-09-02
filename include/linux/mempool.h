@@ -66,9 +66,15 @@ extern void mempool_destroy(mempool_t *pool);
 extern void *mempool_alloc_noprof(mempool_t *pool, gfp_t gfp_mask) __malloc;
 #define mempool_alloc(...)						\
 	alloc_hooks(mempool_alloc_noprof(__VA_ARGS__))
+int mempool_alloc_bulk_noprof(struct mempool *pool, void **elem,
+		unsigned int count);
+#define mempool_alloc_bulk(...)						\
+	alloc_hooks(mempool_alloc_bulk_noprof(__VA_ARGS__))
 
 extern void *mempool_alloc_preallocated(mempool_t *pool) __malloc;
 extern void mempool_free(void *element, mempool_t *pool);
+unsigned int mempool_free_bulk(struct mempool *pool, void **elem,
+		unsigned int count);
 
 /*
  * A mempool_alloc_t and mempool_free_t that get the memory from
@@ -96,19 +102,6 @@ void mempool_kfree(void *element, void *pool_data);
 #define mempool_create_kmalloc_pool(_min_nr, _size)			\
 	mempool_create((_min_nr), mempool_kmalloc, mempool_kfree,	\
 		       (void *)(unsigned long)(_size))
-
-void *mempool_kvmalloc(gfp_t gfp_mask, void *pool_data);
-void mempool_kvfree(void *element, void *pool_data);
-
-static inline int mempool_init_kvmalloc_pool(mempool_t *pool, int min_nr, size_t size)
-{
-	return mempool_init(pool, min_nr, mempool_kvmalloc, mempool_kvfree, (void *) size);
-}
-
-static inline mempool_t *mempool_create_kvmalloc_pool(int min_nr, size_t size)
-{
-	return mempool_create(min_nr, mempool_kvmalloc, mempool_kvfree, (void *) size);
-}
 
 /*
  * A mempool_alloc_t and mempool_free_t for a simple page allocator that

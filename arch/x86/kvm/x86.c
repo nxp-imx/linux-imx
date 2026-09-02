@@ -12336,11 +12336,29 @@ static void kvm_load_guest_fpu(struct kvm_vcpu *vcpu)
 	/* Exclude PKRU, it's restored separately immediately after VM-Exit. */
 	fpu_swap_kvm_fpstate(&vcpu->arch.guest_fpu, true);
 	trace_kvm_fpu(1);
+#ifdef __PKVM_HYP__
+	/*
+	 * Clear TIF_NEED_FPU_LOAD to indicate the guest FPU state is loaded on
+	 * the hardware.
+	 *
+	 * Although npVM's FPU state is loaded by the host rather than the pKVM,
+	 * the MSR_IA32_XFD WRMSR vmexit handling is done by the pKVM, which
+	 * still needs to update this flag properly for fpu_update_guest_xfd().
+	 */
+	clear_thread_flag(TIF_NEED_FPU_LOAD);
+#endif
 }
 
 /* When vcpu_run ends, restore user space FPU context. */
 static void kvm_put_guest_fpu(struct kvm_vcpu *vcpu)
 {
+#ifdef __PKVM_HYP__
+	/*
+	 * Set TIF_NEED_FPU_LOAD to indicate the guest FPU state is not loaded
+	 * on the hardware, pairs with the clearing in kvm_load_guest_fpu.
+	 */
+	set_thread_flag(TIF_NEED_FPU_LOAD);
+#endif
 	if (KVM_BUG_ON(!vcpu->arch.guest_fpu.fpstate->in_use, vcpu->kvm))
 		return;
 

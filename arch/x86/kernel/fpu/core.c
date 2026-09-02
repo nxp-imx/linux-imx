@@ -457,9 +457,6 @@ int fpu_swap_kvm_fpstate(struct fpu_guest *guest_fpu, bool enter_guest)
 	if (guest_fps->is_confidential) {
 		/* Includes XFD update */
 		restore_fpregs_from_fpstate(cur_fps, XFEATURE_MASK_FPSTATE);
-	} else {
-		/* Only update XFD as npVM FPU is already loaded by the host */
-		xfd_update_state(cur_fps);
 	}
 #endif
 

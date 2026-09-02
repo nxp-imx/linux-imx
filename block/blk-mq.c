@@ -1405,7 +1405,8 @@ static void blk_add_rq_to_plug(struct blk_plug *plug, struct request *rq)
 		trace_block_plug(rq->q);
 	}
 
-	if (!plug->multiple_queues && last && last->q != rq->q)
+	if (!plug->multiple_queues && ((last && last->q != rq->q) ||
+				       blk_pipeline_zwr(rq->q)))
 		plug->multiple_queues = true;
 	/*
 	 * Any request allocated from sched tags can't be issued to
@@ -2137,6 +2138,37 @@ static void blk_mq_commit_rqs(struct blk_mq_hw_ctx *hctx, int queued,
 	}
 }
 
+static void blk_mq_reinsert_list(struct blk_mq_hw_ctx *hctx,
+				 struct list_head *list)
+{
+	struct request *rq, *next;
+	LIST_HEAD(ordered_list);
+
+	if (!blk_mq_preserve_order_for_list(hctx->queue, list)) {
+		spin_lock(&hctx->lock);
+		list_splice_tail_init(list, &hctx->dispatch);
+		spin_unlock(&hctx->lock);
+		return;
+	}
+
+	list_for_each_entry_safe(rq, next, list, queuelist) {
+		if (blk_mq_preserve_order(rq))
+			list_move_tail(&rq->queuelist, &ordered_list);
+	}
+
+	if (!list_empty(list)) {
+		spin_lock(&hctx->lock);
+		list_splice_tail_init(list, &hctx->dispatch);
+		spin_unlock(&hctx->lock);
+	}
+
+	while (!list_empty(&ordered_list)) {
+		rq = list_last_entry(&ordered_list, struct request, queuelist);
+		list_del_init(&rq->queuelist);
+		blk_mq_insert_request(rq, BLK_MQ_INSERT_ORDERED);
+	}
+}
+
 /*
  * Returns true if we did some work AND can potentially do more.
  */
@@ -2212,9 +2244,7 @@ out:
 		if (!get_budget)
 			blk_mq_release_budgets(q, list);
 
-		spin_lock(&hctx->lock);
-		list_splice_tail_init(list, &hctx->dispatch);
-		spin_unlock(&hctx->lock);
+		blk_mq_reinsert_list(hctx, list);
 
 		/*
 		 * Order adding requests to hctx->dispatch and checking
@@ -2714,8 +2744,6 @@ static void blk_mq_insert_request(struct request *rq, blk_insert_t flags)
 	} else if (q->elevator) {
 		LIST_HEAD(list);
 
-		WARN_ON_ONCE(rq->tag != BLK_MQ_NO_TAG);
-
 		list_add(&rq->queuelist, &list);
 		q->elevator->type->ops.insert_requests(hctx, &list, flags);
 	} else {
@@ -3070,7 +3098,8 @@ static void blk_mq_try_issue_list_directly(struct blk_mq_hw_ctx *hctx,
 		case BLK_STS_DEV_RESOURCE:
 			blk_mq_request_bypass_insert(rq, 0);
 			if (list_empty(list))
-				blk_mq_run_hw_queue(hctx, false);
+				blk_mq_run_hw_queue(hctx,
+					blk_mq_zwp_mutex(hctx) != NULL);
 			goto out;
 		default:
 			blk_mq_end_request(rq, ret);
@@ -3887,9 +3916,7 @@ static int blk_mq_hctx_notify_dead(unsigned int cpu, struct hlist_node *node)
 	if (list_empty(&tmp))
 		return 0;
 
-	spin_lock(&hctx->lock);
-	list_splice_tail_init(&tmp, &hctx->dispatch);
-	spin_unlock(&hctx->lock);
+	blk_mq_reinsert_list(hctx, &tmp);
 
 	blk_mq_run_hw_queue(hctx, true);
 	return 0;

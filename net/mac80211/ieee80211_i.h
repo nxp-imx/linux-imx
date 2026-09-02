@@ -928,6 +928,9 @@ struct ieee80211_chanctx {
 
 	bool radar_detected;
 
+	/* This chanctx is in process of getting used */
+	bool will_be_used;
+
 	/* MUST be last - ends in a flexible-array member. */
 	struct ieee80211_chanctx_conf conf;
 };
@@ -984,16 +987,32 @@ struct ieee80211_if_mntr {
  *
  * @conf: current NAN configuration
  * @started: true iff NAN is started
- * @func_lock: lock for @func_inst_ids
- * @function_inst_ids: a bitmap of available instance_id's
+ * @de: Discovery Engine state (only valid if !WIPHY_NAN_FLAGS_USERSPACE_DE)
+ * @de.func_lock: lock for @de.function_inst_ids
+ * @de.function_inst_ids: a bitmap of available instance_id's
+ * @removed_channels: bitmap of channels that should be removed from the NAN
+ *	schedule once the deferred schedule update is completed.
  */
 struct ieee80211_if_nan {
 	struct cfg80211_nan_conf conf;
 	bool started;
 
-	/* protects function_inst_ids */
-	spinlock_t func_lock;
-	struct idr function_inst_ids;
+	struct {
+		/* protects function_inst_ids */
+		spinlock_t func_lock;
+		struct idr function_inst_ids;
+	} de;
+	DECLARE_BITMAP(removed_channels, IEEE80211_NAN_MAX_CHANNELS);
+};
+
+/**
+ * struct ieee80211_if_nan_data - NAN data path state
+ *
+ * @nmi: pointer to the NAN management interface sdata. Used for data path,
+ *	hence RCU.
+ */
+struct ieee80211_if_nan_data {
+	struct ieee80211_sub_if_data __rcu *nmi;
 };
 
 struct ieee80211_link_data_managed {
@@ -1197,6 +1216,7 @@ struct ieee80211_sub_if_data {
 		struct ieee80211_if_ocb ocb;
 		struct ieee80211_if_mntr mntr;
 		struct ieee80211_if_nan nan;
+		struct ieee80211_if_nan_data nan_data;
 	} u;
 
 	struct ieee80211_link_data deflink;
@@ -1912,10 +1932,10 @@ ieee80211_vif_get_num_mcast_if(struct ieee80211_sub_if_data *sdata)
 	return -1;
 }
 
-u64 ieee80211_calculate_rx_timestamp(struct ieee80211_local *local,
-				     struct ieee80211_rx_status *status,
-				     unsigned int mpdu_len,
-				     unsigned int mpdu_offset);
+static inline bool ieee80211_sdata_running(struct ieee80211_sub_if_data *sdata)
+{
+	return test_bit(SDATA_STATE_RUNNING, &sdata->state);
+}
 int ieee80211_hw_config(struct ieee80211_local *local, int radio_idx,
 			u32 changed);
 int ieee80211_hw_conf_chan(struct ieee80211_local *local);
@@ -2014,6 +2034,37 @@ int ieee80211_mesh_csa_beacon(struct ieee80211_sub_if_data *sdata,
 			      u64 *changed);
 int ieee80211_mesh_finish_csa(struct ieee80211_sub_if_data *sdata,
 			      u64 *changed);
+
+/* NAN code */
+int ieee80211_nan_set_local_sched(struct ieee80211_sub_if_data *sdata,
+				  struct cfg80211_nan_local_sched *sched);
+int ieee80211_nan_set_peer_sched(struct ieee80211_sub_if_data *sdata,
+				 struct cfg80211_nan_peer_sched *sched);
+void ieee80211_nan_free_peer_sched(struct ieee80211_nan_peer_sched *sched);
+void ieee80211_nan_update_ndi_carrier(struct ieee80211_sub_if_data *ndi_sdata);
+struct ieee80211_nan_channel *
+ieee80211_nan_find_evac_chan(struct ieee80211_local *local,
+			     struct ieee80211_sub_if_data *sdata,
+			     struct ieee80211_chanctx *ctx);
+void ieee80211_nan_evacuate_channel(struct ieee80211_sub_if_data *sdata,
+				    struct ieee80211_nan_channel *nan_channel);
+
+static inline struct ieee80211_sub_if_data *
+ieee80211_find_nan_sdata(struct ieee80211_local *local)
+{
+	struct ieee80211_sub_if_data *sdata;
+
+	lockdep_assert_wiphy(local->hw.wiphy);
+
+	/* Find the NAN interface - there can only be one */
+	list_for_each_entry(sdata, &local->interfaces, list) {
+		if (ieee80211_sdata_running(sdata) &&
+		    sdata->vif.type == NL80211_IFTYPE_NAN)
+			return sdata;
+	}
+
+	return NULL;
+}
 
 /* scan/BSS handling */
 void ieee80211_scan_work(struct wiphy *wiphy, struct wiphy_work *work);
@@ -2114,11 +2165,6 @@ void ieee80211_recalc_txpower(struct ieee80211_link_data *link,
 			      bool update_bss);
 void ieee80211_recalc_offload(struct ieee80211_local *local);
 
-static inline bool ieee80211_sdata_running(struct ieee80211_sub_if_data *sdata)
-{
-	return test_bit(SDATA_STATE_RUNNING, &sdata->state);
-}
-
 /* link handling */
 void ieee80211_link_setup(struct ieee80211_link_data *link);
 void ieee80211_link_init(struct ieee80211_sub_if_data *sdata,
@@ -2178,7 +2224,7 @@ void ieee80211_aggr_check(struct ieee80211_sub_if_data *sdata,
 void ieee80211_apply_htcap_overrides(struct ieee80211_sub_if_data *sdata,
 				     struct ieee80211_sta_ht_cap *ht_cap);
 bool ieee80211_ht_cap_ie_to_sta_ht_cap(struct ieee80211_sub_if_data *sdata,
-				       struct ieee80211_supported_band *sband,
+				       const struct ieee80211_sta_ht_cap *own_cap,
 				       const struct ieee80211_ht_cap *ht_cap_ie,
 				       struct link_sta_info *link_sta);
 void ieee80211_send_delba(struct ieee80211_sub_if_data *sdata,
@@ -2261,6 +2307,7 @@ void ieee80211_ht_handle_chanwidth_notif(struct ieee80211_local *local,
 void
 ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 				    struct ieee80211_supported_band *sband,
+				    const struct ieee80211_sta_vht_cap *own_vht_cap,
 				    const struct ieee80211_vht_cap *vht_cap_ie,
 				    const struct ieee80211_vht_cap *vht_cap_ie2,
 				    struct link_sta_info *link_sta);
@@ -2300,6 +2347,12 @@ enum nl80211_chan_width
 ieee80211_sta_rx_bw_to_chan_width(struct link_sta_info *sta);
 
 /* HE */
+void
+_ieee80211_he_cap_ie_to_sta_he_cap(struct ieee80211_sub_if_data *sdata,
+				   const struct ieee80211_sta_he_cap *own_he_cap,
+				   const u8 *he_cap_ie, u8 he_cap_len,
+				   const struct ieee80211_he_6ghz_capa *he_6ghz_capa,
+				   struct link_sta_info *link_sta);
 void
 ieee80211_he_cap_ie_to_sta_he_cap(struct ieee80211_sub_if_data *sdata,
 				  struct ieee80211_supported_band *sband,
@@ -2667,8 +2720,7 @@ u8 ieee80211_ie_len_he_cap(struct ieee80211_sub_if_data *sdata);
 u8 *ieee80211_ie_build_he_oper(u8 *pos, const struct cfg80211_chan_def *chandef);
 u8 *ieee80211_ie_build_eht_oper(u8 *pos, const struct cfg80211_chan_def *chandef,
 				const struct ieee80211_sta_eht_cap *eht_cap);
-int ieee80211_parse_bitrates(enum nl80211_chan_width width,
-			     const struct ieee80211_supported_band *sband,
+int ieee80211_parse_bitrates(const struct ieee80211_supported_band *sband,
 			     const u8 *srates, int srates_len, u32 *rates);
 u8 *ieee80211_add_wmm_info_ie(u8 *buf, u8 qosinfo);
 void ieee80211_add_s1g_capab_ie(struct ieee80211_sub_if_data *sdata,
@@ -2767,9 +2819,7 @@ int ieee80211_chanctx_refcount(struct ieee80211_local *local,
 void ieee80211_recalc_smps_chanctx(struct ieee80211_local *local,
 				   struct ieee80211_chanctx *chanctx);
 void ieee80211_recalc_chanctx_min_def(struct ieee80211_local *local,
-				      struct ieee80211_chanctx *ctx,
-				      struct ieee80211_link_data *rsvd_for,
-				      bool check_reserved);
+				      struct ieee80211_chanctx *ctx);
 bool ieee80211_is_radar_required(struct ieee80211_local *local,
 				 struct cfg80211_scan_request *req);
 bool ieee80211_is_radio_idx_in_scan_req(struct wiphy *wiphy,
@@ -2785,15 +2835,51 @@ int ieee80211_send_action_csa(struct ieee80211_sub_if_data *sdata,
 			      struct cfg80211_csa_settings *csa_settings);
 void ieee80211_recalc_sb_count(struct ieee80211_sub_if_data *sdata, u64 tsf);
 void ieee80211_recalc_dtim(struct ieee80211_sub_if_data *sdata, u64 tsf);
-int ieee80211_check_combinations(struct ieee80211_sub_if_data *sdata,
-				 const struct cfg80211_chan_def *chandef,
-				 enum ieee80211_chanctx_mode chanmode,
-				 u8 radar_detect, int radio_idx);
+
+struct ieee80211_check_combinations_data {
+	const struct cfg80211_chan_def *chandef;
+	enum ieee80211_chanctx_mode chanmode;
+	u8 radar_detect;
+	int radio_idx;
+	bool (*chanctx_filter)(struct ieee80211_chanctx *ctx,
+			       void *filter_data);
+	void *filter_data;
+};
+
+int ieee80211_check_combinations_ext(struct ieee80211_sub_if_data *sdata,
+				     struct ieee80211_check_combinations_data *data);
+
+static inline int
+ieee80211_check_combinations(struct ieee80211_sub_if_data *sdata,
+			     const struct cfg80211_chan_def *chandef,
+			     enum ieee80211_chanctx_mode chanmode,
+			     u8 radar_detect, int radio_idx)
+{
+	struct ieee80211_check_combinations_data data = {
+		.chandef = chandef,
+		.chanmode = chanmode,
+		.radar_detect = radar_detect,
+		.radio_idx = radio_idx,
+	};
+
+	return ieee80211_check_combinations_ext(sdata, &data);
+}
+
 int ieee80211_max_num_channels(struct ieee80211_local *local, int radio_idx);
 u32 ieee80211_get_radio_mask(struct wiphy *wiphy, struct net_device *dev);
 void ieee80211_recalc_chanctx_chantype(struct ieee80211_local *local,
 				       struct ieee80211_chanctx *ctx);
-
+struct ieee80211_chanctx *
+ieee80211_find_or_create_chanctx(struct ieee80211_sub_if_data *sdata,
+				 const struct ieee80211_chan_req *chanreq,
+				 enum ieee80211_chanctx_mode mode,
+				 bool assign_on_failure,
+				 bool *reused_ctx);
+void ieee80211_free_chanctx(struct ieee80211_local *local,
+			    struct ieee80211_chanctx *ctx,
+			    bool skip_idle_recalc);
+int ieee80211_chanctx_num_assigned(struct ieee80211_local *local,
+				   struct ieee80211_chanctx *ctx);
 /* TDLS */
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 			const u8 *peer, int link_id,

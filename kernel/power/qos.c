@@ -575,6 +575,8 @@ EXPORT_SYMBOL_GPL(freq_qos_add_request);
  */
 int freq_qos_update_request(struct freq_qos_request *req, s32 new_value)
 {
+	bool skip = false;
+
 	if (!req || freq_qos_value_invalid(new_value))
 		return -EINVAL;
 
@@ -583,6 +585,10 @@ int freq_qos_update_request(struct freq_qos_request *req, s32 new_value)
 		return -EINVAL;
 
 	trace_android_vh_freq_qos_update_request(req, new_value);
+	trace_android_rvh_freq_qos_update_request_v2(req, new_value, &skip);
+	if (skip)
+		return 0;
+
 	if (req->pnode.prio == new_value)
 		return 0;
 

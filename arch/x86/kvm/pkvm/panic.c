@@ -133,12 +133,40 @@ static void __noreturn pkvm_emergency_reset(void)
 		asm volatile("cli; hlt");
 }
 
+static void pkvm_get_timestamp(unsigned long *sec, unsigned long *usec)
+{
+	u64 cycles, rem_cycles;
+
+	cycles = rdtsc_ordered();
+	*sec = cycles / (tsc_khz * 1000ULL);
+	rem_cycles = cycles % (tsc_khz * 1000ULL);
+	*usec = (rem_cycles * 1000ULL) / tsc_khz;
+}
+
+/*
+ * Approximate uptime timestamp derived directly from hardware TSC cycles.
+ * Note: it is slightly ahead (~1-2s on Chromebooks) of the host kernel printk
+ * timestamp, which zeroes at kernel entry, but preserves proper chronological
+ * ordering for crash log analysis.
+ */
+static int pkvm_printk_prefix(char *buf, size_t size)
+{
+	char caller[8];
+	unsigned long sec, usec;
+
+	scnprintf(caller, sizeof(caller), "C%d", raw_smp_processor_id());
+	pkvm_get_timestamp(&sec, &usec);
+	return scnprintf(buf, size, "<0>[%5lu.%06lu][%6s] ",
+			 sec, usec, caller);
+}
+
 atomic_t pkvm_panic_in_progress = ATOMIC_INIT(0);
 
-void __noreturn pkvm_panic(const char *fmt, ...)
+void __noreturn panic(const char *fmt, ...)
 {
 	static char panic_msg[1024];
 	va_list args;
+	int len;
 
 	/*
 	 * Ensure only one CPU handles the panic and writes to ramoops.
@@ -167,8 +195,14 @@ void __noreturn pkvm_panic(const char *fmt, ...)
 	 */
 	pkvm_udelay(10000);
 
+	len = pkvm_printk_prefix(panic_msg, sizeof(panic_msg));
+	len += scnprintf(panic_msg + len, sizeof(panic_msg) - len,
+			 "Kernel panic - not syncing: HYP panic:\n");
+
+	len += pkvm_printk_prefix(panic_msg + len, sizeof(panic_msg) - len);
+
 	va_start(args, fmt);
-	vscnprintf(panic_msg, sizeof(panic_msg), fmt, args);
+	vscnprintf(panic_msg + len, sizeof(panic_msg) - len, fmt, args);
 	va_end(args);
 
 	pkvm_err("%s", panic_msg);

@@ -299,6 +299,19 @@ static int gunyah_rm_init_message_payload(struct gunyah_rm_message *message,
 	return 0;
 }
 
+/*
+ * Erase the call_xarray entry before waking the waiter: once seq_done is
+ * completed, gunyah_rm_call() may return and its on-stack message can go
+ * out of scope at any time, so the entry must not be reachable via
+ * xa_load() after this point.
+ */
+static inline void gunyah_rm_complete_reply(struct gunyah_rm *rm,
+					    struct gunyah_rm_message *message)
+{
+	xa_erase(&rm->call_xarray, message->reply.seq);
+	complete(&message->reply.seq_done);
+}
+
 static void gunyah_rm_abort_message(struct gunyah_rm *rm)
 {
 	kfree(rm->active_rx_message->payload);
@@ -306,7 +319,7 @@ static void gunyah_rm_abort_message(struct gunyah_rm *rm)
 	switch (rm->active_rx_message->type) {
 	case RM_RPC_TYPE_REPLY:
 		rm->active_rx_message->reply.ret = -EIO;
-		complete(&rm->active_rx_message->reply.seq_done);
+		gunyah_rm_complete_reply(rm, rm->active_rx_message);
 		break;
 	case RM_RPC_TYPE_NOTIF:
 		fallthrough;
@@ -326,7 +339,7 @@ static inline void gunyah_rm_try_complete_message(struct gunyah_rm *rm)
 
 	switch (message->type) {
 	case RM_RPC_TYPE_REPLY:
-		complete(&message->reply.seq_done);
+		gunyah_rm_complete_reply(rm, message);
 		break;
 	case RM_RPC_TYPE_NOTIF:
 		blocking_notifier_call_chain(&rm->nh, message->msg_id,
@@ -388,8 +401,18 @@ static void gunyah_rm_process_reply(struct gunyah_rm *rm, const void *msg,
 	seq_id = le16_to_cpu(reply_hdr->hdr.seq);
 	message = xa_load(&rm->call_xarray, seq_id);
 
-	if (!message || message->msg_id != le32_to_cpu(reply_hdr->hdr.msg_id))
+	if (!message) {
+		pr_err_ratelimited("Stray reply for unknown sequence %d\n",
+				   seq_id);
 		return;
+	}
+
+	if (message->msg_id != le32_to_cpu(reply_hdr->hdr.msg_id)) {
+		pr_err_ratelimited("Reply msg_id mismatch for sequence %d: expected %u, got %u\n",
+				   seq_id, message->msg_id,
+				   le32_to_cpu(reply_hdr->hdr.msg_id));
+		return;
+	}
 
 	if (rm->active_rx_message) {
 		pr_err("Unexpected new reply, still processing an active message\n");
@@ -402,7 +425,7 @@ static void gunyah_rm_process_reply(struct gunyah_rm *rm, const void *msg,
 			seq_id);
 		/* Send message complete and error the client. */
 		message->reply.ret = -ENOMEM;
-		complete(&message->reply.seq_done);
+		gunyah_rm_complete_reply(rm, message);
 		return;
 	}
 
@@ -635,6 +658,13 @@ int gunyah_rm_call(struct gunyah_rm *rm, u32 message_id, const void *req_buf,
 				     &message);
 	if (ret < 0) {
 		pr_warn("Failed to send request. Error: %d\n", ret);
+		/*
+		 * Request never reached RM, so the RX thread will never see
+		 * this seq. Erase it here; every other path to "out" got here
+		 * via wait_for_completion(), meaning the RX thread already
+		 * erased it before completing us.
+		 */
+		xa_erase(&rm->call_xarray, message.reply.seq);
 		goto out;
 	}
 
@@ -674,7 +704,6 @@ int gunyah_rm_call(struct gunyah_rm *rm, u32 message_id, const void *req_buf,
 
 out:
 	mutex_unlock(&rm->send_lock);
-	xa_erase(&rm->call_xarray, message.reply.seq);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(gunyah_rm_call);

@@ -21,7 +21,6 @@
 #define AIROHA_MAX_NUM_IRQ_BANKS	4
 #define AIROHA_MAX_DSA_PORTS		7
 #define AIROHA_MAX_NUM_RSTS		3
-#define AIROHA_MAX_NUM_XSI_RSTS		5
 #define AIROHA_MAX_MTU			9216
 #define AIROHA_MAX_PACKET_SIZE		2048
 #define AIROHA_NUM_QOS_CHANNELS		4
@@ -50,15 +49,9 @@
 
 #define PPE_NUM				2
 #define PPE1_SRAM_NUM_ENTRIES		(8 * 1024)
-#define PPE_SRAM_NUM_ENTRIES		(2 * PPE1_SRAM_NUM_ENTRIES)
-#ifdef CONFIG_NET_AIROHA_FLOW_STATS
+#define PPE_SRAM_NUM_ENTRIES		(PPE_NUM * PPE1_SRAM_NUM_ENTRIES)
 #define PPE1_STATS_NUM_ENTRIES		(4 * 1024)
-#else
-#define PPE1_STATS_NUM_ENTRIES		0
-#endif /* CONFIG_NET_AIROHA_FLOW_STATS */
-#define PPE_STATS_NUM_ENTRIES		(2 * PPE1_STATS_NUM_ENTRIES)
-#define PPE1_SRAM_NUM_DATA_ENTRIES	(PPE1_SRAM_NUM_ENTRIES - PPE1_STATS_NUM_ENTRIES)
-#define PPE_SRAM_NUM_DATA_ENTRIES	(2 * PPE1_SRAM_NUM_DATA_ENTRIES)
+#define PPE_STATS_NUM_ENTRIES		(PPE_NUM * PPE1_STATS_NUM_ENTRIES)
 #define PPE_DRAM_NUM_ENTRIES		(16 * 1024)
 #define PPE_NUM_ENTRIES			(PPE_SRAM_NUM_ENTRIES + PPE_DRAM_NUM_ENTRIES)
 #define PPE_HASH_MASK			(PPE_NUM_ENTRIES - 1)
@@ -562,8 +555,17 @@ struct airoha_ppe {
 	struct dentry *debugfs_dir;
 };
 
+struct airoha_eth_soc_data {
+	u16 version;
+	const char * const *xsi_rsts_names;
+	int num_xsi_rsts;
+	int num_ppe;
+};
+
 struct airoha_eth {
 	struct device *dev;
+
+	const struct airoha_eth_soc_data *soc;
 
 	unsigned long state;
 	void __iomem *fe_regs;
@@ -574,7 +576,7 @@ struct airoha_eth {
 	struct rhashtable flow_table;
 
 	struct reset_control_bulk_data rsts[AIROHA_MAX_NUM_RSTS];
-	struct reset_control_bulk_data xsi_rsts[AIROHA_MAX_NUM_XSI_RSTS];
+	struct reset_control_bulk_data *xsi_rsts;
 
 	struct net_device *napi_dev;
 
@@ -617,9 +619,15 @@ static inline bool airhoa_is_lan_gdm_port(struct airoha_gdm_port *port)
 	return port->id == 1;
 }
 
+static inline bool airoha_is_7581(struct airoha_eth *eth)
+{
+	return eth->soc->version == 0x7581;
+}
+
 bool airoha_is_valid_gdm_port(struct airoha_eth *eth,
 			      struct airoha_gdm_port *port);
 
+bool airoha_ppe_is_enabled(struct airoha_eth *eth, int index);
 void airoha_ppe_check_skb(struct airoha_ppe_dev *dev, struct sk_buff *skb,
 			  u16 hash, bool rx_wlan);
 int airoha_ppe_setup_tc_block_cb(struct airoha_ppe_dev *dev, void *type_data);

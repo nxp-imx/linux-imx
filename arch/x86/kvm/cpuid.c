@@ -263,7 +263,7 @@ static u32 kvm_apply_cpuid_pv_features_quirk(struct kvm_vcpu *vcpu)
 		 */
 		best->eax = 0;
 #ifdef __PKVM_HYP__
-		best = kvm_find_cpuid_entry(vcpu, KVM_CPUID_SIGNATURE);
+		best = kvm_find_cpuid_entry(vcpu, kvm_cpuid.base);
 		if (best) {
 			/*
 			 * TODO:

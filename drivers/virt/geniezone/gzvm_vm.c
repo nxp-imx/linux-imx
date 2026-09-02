@@ -697,11 +697,22 @@ static struct gzvm *gzvm_create_vm(struct gzvm_driver *drv, unsigned long vm_typ
 int gzvm_dev_ioctl_create_vm(struct gzvm_driver *drv, unsigned long vm_type)
 {
 	struct gzvm *gzvm;
+	int ret;
 
 	gzvm = gzvm_create_vm(drv, vm_type);
 	if (IS_ERR(gzvm))
 		return PTR_ERR(gzvm);
 
-	return anon_inode_getfd("gzvm-vm", &gzvm_vm_fops, gzvm,
+	ret = anon_inode_getfd("gzvm-vm", &gzvm_vm_fops, gzvm,
 			       O_RDWR | O_CLOEXEC);
+	/*
+	 * gzvm_create_vm() initializes the VM's kref to one. If
+	 * anon_inode_getfd() succeeds, gzvm_vm_release() drops this initial
+	 * reference when the VM file is released. On failure, the release
+	 * callback will not run, so drop the reference here.
+	 */
+	if (ret < 0)
+		gzvm_vm_put(gzvm);
+
+	return ret;
 }

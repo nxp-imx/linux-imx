@@ -537,6 +537,7 @@ extern void pm_system_wakeup(void);
 extern void pm_system_cancel_wakeup(void);
 extern void pm_wakeup_clear(unsigned int irq_number);
 extern void pm_system_irq_wakeup(unsigned int irq_number);
+extern void pm_print_wakeup_irq(void);
 extern unsigned int pm_wakeup_irq(void);
 extern bool pm_get_wakeup_count(unsigned int *count, bool block);
 extern bool pm_save_wakeup_count(unsigned int count);
@@ -575,8 +576,9 @@ static inline void ksys_sync_helper(void) {}
 static inline bool pm_suspended_storage(void) { return false; }
 static inline bool pm_wakeup_pending(void) { return false; }
 static inline void pm_system_wakeup(void) {}
-static inline void pm_wakeup_clear(bool reset) {}
+static inline void pm_wakeup_clear(unsigned int irq_number) {}
 static inline void pm_system_irq_wakeup(unsigned int irq_number) {}
+static inline void pm_print_wakeup_irq(void) {}
 
 static inline unsigned int lock_system_sleep(void) { return 0; }
 static inline void unlock_system_sleep(unsigned int flags) {}

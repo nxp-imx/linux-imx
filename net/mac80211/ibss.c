@@ -1022,7 +1022,8 @@ static void ieee80211_update_sta_info(struct ieee80211_sub_if_data *sdata,
 		ieee80211_chandef_ht_oper(elems->ht_operation, &chandef);
 
 		memcpy(&htcap_ie, elems->ht_cap_elem, sizeof(htcap_ie));
-		rates_updated |= ieee80211_ht_cap_ie_to_sta_ht_cap(sdata, sband,
+		rates_updated |= ieee80211_ht_cap_ie_to_sta_ht_cap(sdata,
+								   &sband->ht_cap,
 								   &htcap_ie,
 								   &sta->deflink);
 
@@ -1041,6 +1042,7 @@ static void ieee80211_update_sta_info(struct ieee80211_sub_if_data *sdata,
 						   &chandef);
 			memcpy(&cap_ie, elems->vht_cap_elem, sizeof(cap_ie));
 			ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
+							    &sband->vht_cap,
 							    &cap_ie, NULL,
 							    &sta->deflink);
 			if (memcmp(&cap, &sta->sta.deflink.vht_cap, sizeof(cap)))
@@ -1133,7 +1135,7 @@ static void ieee80211_rx_bss_info(struct ieee80211_sub_if_data *sdata,
 	if (ieee80211_have_rx_timestamp(rx_status)) {
 		/* time when timestamp field was received */
 		rx_timestamp =
-			ieee80211_calculate_rx_timestamp(local, rx_status,
+			ieee80211_calculate_rx_timestamp(&local->hw, rx_status,
 							 len + FCS_LEN, 24);
 	} else {
 		/*

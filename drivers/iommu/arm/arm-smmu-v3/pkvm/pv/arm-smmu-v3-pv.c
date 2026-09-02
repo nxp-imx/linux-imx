@@ -449,7 +449,7 @@ static int smmu_domain_finalise(struct hyp_arm_smmu_v3_device_pv *smmu,
 		cfg = (struct io_pgtable_cfg) {
 			.pgsize_bitmap = smmu->common.pgsize_bitmap,
 			.ias = min_t(unsigned long, ias, VA_BITS),
-			.oas = smmu->common.ias,
+			.oas = smmu->common.oas,
 			.coherent_walk = smmu->common.features & ARM_SMMU_FEAT_COHERENCY,
 			.tlb = &smmu_tlb_ops,
 			.put_pages = smmu_put_pages,
@@ -458,7 +458,7 @@ static int smmu_domain_finalise(struct hyp_arm_smmu_v3_device_pv *smmu,
 		fmt = ARM_64_LPAE_S2;
 		cfg = (struct io_pgtable_cfg) {
 			.pgsize_bitmap = smmu->common.pgsize_bitmap,
-			.ias = smmu->common.ias,
+			.ias = smmu->common.oas,
 			.oas = smmu->common.oas,
 			.coherent_walk = smmu->common.features & ARM_SMMU_FEAT_COHERENCY,
 			.tlb = &smmu_tlb_ops,
@@ -968,7 +968,7 @@ static phys_addr_t smmu_iova_to_phys(struct kvm_hyp_iommu_domain *domain,
 	struct io_pgtable *pgtable = smmu_domain->pgtable;
 
 	if (!pgtable)
-		return -EINVAL;
+		return 0;
 
 	hyp_spin_lock(&smmu_domain->pgt_lock);
 	paddr = pgtable->ops.iova_to_phys(&pgtable->ops, iova);
@@ -1444,7 +1444,7 @@ static int smmu_init_idmap(void)
 	struct io_pgtable_ops *ops;
 
 	for_each_smmu(smmu) {
-		cfg.ias = min(cfg.ias, smmu->common.ias);
+		cfg.ias = min(cfg.ias, smmu->common.oas);
 		cfg.oas = min(cfg.oas, smmu->common.oas);
 		cfg.pgsize_bitmap &= smmu->common.pgsize_bitmap;
 		cfg.coherent_walk &= !!(smmu->common.features & ARM_SMMU_FEAT_COHERENCY);

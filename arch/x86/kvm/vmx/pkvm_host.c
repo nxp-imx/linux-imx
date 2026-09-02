@@ -3,7 +3,6 @@
 
 #include <linux/kvm_host.h>
 #include <asm/kvm_pkvm.h>
-#include <asm/fred.h>
 #include "pkvm_constants.h"
 #include "posted_intr.h"
 #include "trace.h"
@@ -921,8 +920,22 @@ static int pkvm_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 	if (pkvm_host_has_emulated_msr(vcpu->kvm, msr_info->index))
 		return kvm_set_msr_common(vcpu, msr_info);
 
-	if (!vcpu->arch.guest_state_protected)
-		return pkvm_hypercall(set_msr, msr_info->index, msr_info->data);
+	if (!vcpu->arch.guest_state_protected) {
+		int ret = pkvm_hypercall(set_msr, msr_info->index, msr_info->data);
+
+		if (ret)
+			return ret;
+
+		switch (msr_info->index) {
+		case MSR_IA32_XFD:
+			fpu_update_guest_xfd(&vcpu->arch.guest_fpu, msr_info->data);
+			break;
+		default:
+			break;
+		}
+
+		return 0;
+	}
 
 	return -EPERM;
 }
@@ -1133,13 +1146,15 @@ static void pkvm_set_cr4(struct kvm_vcpu *vcpu, unsigned long cr4)
 
 static int pkvm_set_efer(struct kvm_vcpu *vcpu, u64 efer)
 {
-	int ret = -EINVAL;
+	if (!vcpu->arch.guest_state_protected) {
+		int ret = pkvm_hypercall(set_efer, efer);
 
-	if (!vcpu->arch.guest_state_protected)
-		ret = pkvm_hypercall(set_efer, efer);
+		if (ret)
+			return ret;
+	}
 
 	vcpu->arch.efer = efer;
-	return ret;
+	return 0;
 }
 
 static void pkvm_get_idt(struct kvm_vcpu *vcpu, struct desc_ptr *dt)
@@ -1319,6 +1334,33 @@ static int pkvm_vcpu_pre_run(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+static noinstr void pkvm_vcpu_enter_exit(struct kvm_vcpu *vcpu, u64 run_flags,
+					 union pkvm_hc_data *out)
+{
+	bool force_immediate_exit = run_flags & KVM_RUN_FORCE_IMMEDIATE_EXIT;
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	guest_state_enter_irqoff();
+
+	vmx->vt.exit_reason.full = 0xdead;
+	vcpu->arch.regs_avail &= ~VMX_REGS_LAZY_LOAD_SET;
+
+	vmx->fail = !!pkvm_hypercall_out(vcpu_run, out, force_immediate_exit);
+	if (unlikely(vmx->fail))
+		goto done;
+
+	if (unlikely(vmx_get_exit_reason(vcpu).full == 0xdead)) {
+		vmx->fail = 1;
+		goto done;
+	}
+
+	vcpu->arch.regs_dirty = 0;
+
+	vmx_handle_nmi(vcpu);
+done:
+	guest_state_exit_irqoff();
+}
+
 static fastpath_t pkvm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 {
 	bool force_immediate_exit = run_flags & KVM_RUN_FORCE_IMMEDIATE_EXIT;
@@ -1331,24 +1373,13 @@ static fastpath_t pkvm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 
 	kvm_wait_lapic_expire(vcpu);
 
-	guest_state_enter_irqoff();
-
 	vcpu->arch.nmi_injected = false;
 	kvm_clear_exception_queue(vcpu);
 	kvm_clear_interrupt_queue(vcpu);
 
-	vmx->vt.exit_reason.full = 0xdead;
-	vmx->fail = 0;
-
-	vcpu->arch.regs_avail &= ~VMX_REGS_LAZY_LOAD_SET;
-	if (pkvm_hypercall_out(vcpu_run, &out, force_immediate_exit)) {
-		vmx->fail = 1;
-		guest_state_exit_irqoff();
+	pkvm_vcpu_enter_exit(vcpu, run_flags, &out);
+	if (unlikely(vmx->fail))
 		return EXIT_FASTPATH_NONE;
-	}
-
-	reqs_to_host = out.vcpu_run.reqs_to_host;
-	vcpu->arch.regs_dirty = 0;
 
 	/*
 	 * The host still needs to pre-configure pVM's vCPU state for booting.
@@ -1376,16 +1407,6 @@ static fastpath_t pkvm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 		}
 	}
 
-	if (unlikely(vmx_get_exit_reason(vcpu).full == 0xdead))
-		vmx->fail = 1;
-	else
-		vmx_handle_nmi(vcpu);
-
-	guest_state_exit_irqoff();
-
-	if (unlikely(vmx->fail))
-		return EXIT_FASTPATH_NONE;
-
 	if (unlikely((u16)vmx_get_exit_reason(vcpu).basic == EXIT_REASON_MCE_DURING_VMENTRY))
 		kvm_machine_check();
 
@@ -1394,10 +1415,12 @@ static fastpath_t pkvm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 	if (unlikely(vmx_get_exit_reason(vcpu).failed_vmentry))
 		return EXIT_FASTPATH_NONE;
 
-	if (vcpu->arch.exception.pending || vcpu->arch.exception.injected)
+	if (vcpu->arch.nmi_injected || vcpu->arch.interrupt.injected ||
+	    vcpu->arch.exception.pending || vcpu->arch.exception.injected)
 		kvm_make_request(KVM_REQ_EVENT, vcpu);
 
 	exit_fastpath = EXIT_FASTPATH_EXIT_HANDLED;
+	reqs_to_host = out.vcpu_run.reqs_to_host;
 	if (reqs_to_host) {
 		if (test_and_clear_bit(HOST_HANDLE_EXIT, &reqs_to_host))
 			exit_fastpath = EXIT_FASTPATH_NONE;

@@ -609,7 +609,7 @@ static inline void blk_zone_wplug_bio_io_error(struct blk_zone_wplug *zwplug,
 	bio_clear_flag(bio, BIO_ZONE_WRITE_PLUGGING);
 	bio_io_error(bio);
 	disk_put_zone_wplug(zwplug);
-	/* Drop the reference taken by disk_zone_wplug_add_bio(() */
+	/* Drop the reference taken by disk_zone_wplug_add_bio(). */
 	blk_queue_exit(q);
 }
 
@@ -1003,7 +1003,7 @@ static bool blk_zone_wplug_prepare_bio(struct blk_zone_wplug *zwplug,
 		 * so that we can restore its operation code on completion.
 		 */
 		bio_set_flag(bio, BIO_EMULATES_ZONE_APPEND);
-	} else if (!(disk->queue->limits.features & BLK_FEAT_ZWOR)) {
+	} else {
 		/*
 		 * Check for non-sequential writes early as we know that BIOs
 		 * with a start sector not unaligned to the zone write pointer
@@ -1067,6 +1067,15 @@ static bool blk_zone_wplug_handle_write(struct bio *bio, unsigned int nr_segs,
 		return true;
 	}
 
+	/*
+	 * Disable write pipelining while a flush request is in progress since
+	 * these requests pass through the requeue list and hence could be
+	 * reordered if pipelined.
+	 */
+	if (bio->bi_opf & (REQ_PREFLUSH | REQ_FUA) &&
+	    !bdev_test_flag(bio->bi_bdev, BD_HAS_SUBMIT_BIO))
+		bio->bi_opf |= REQ_ZONE_SERIALIZED;
+
 	/* Indicate that this BIO is being handled using zone write plugging. */
 	bio_set_flag(bio, BIO_ZONE_WRITE_PLUGGING);
 
@@ -1096,8 +1105,9 @@ static bool blk_zone_wplug_handle_write(struct bio *bio, unsigned int nr_segs,
 			from_cpu = zwplug->from_cpu;
 		else
 			from_cpu = smp_processor_id();
-		if (from_cpu != rq_cpu &&
-		    !(disk->queue->limits.features & BLK_FEAT_ZWOR)) {
+		if ((from_cpu != rq_cpu && !blk_use_zwor(disk->queue)) ||
+		    !bio_list_empty(&zwplug->bio_list) ||
+		    work_busy(&zwplug->bio_work)) {
 			zwplug->from_cpu = from_cpu;
 			goto add_to_bio_list;
 		}
@@ -1109,16 +1119,18 @@ static bool blk_zone_wplug_handle_write(struct bio *bio, unsigned int nr_segs,
 		return true;
 	}
 
-	if (pipeline_zwr) {
+	if (pipeline_zwr && !(bio->bi_opf & REQ_ZONE_SERIALIZED)) {
 		/*
-		 * The block driver preserves the write order. Submit future
-		 * writes from the same CPU core as ongoing writes.
+		 * The block driver preserves the write order and serialization
+		 * is not required. Submit future writes from the same CPU core
+		 * as ongoing writes.
 		 */
 		zwplug->from_cpu = from_cpu;
 	} else {
 		/*
-		 * The block driver does not preserve the write order. Plug and
-		 * let the caller submit the BIO.
+		 * The block driver does not preserve the write order or
+		 * serialization is required. Plug and let the caller submit the
+		 * BIO.
 		 */
 		zwplug->flags |= BLK_ZONE_WPLUG_PLUGGED;
 	}
@@ -1396,7 +1408,7 @@ static void blk_zone_wplug_bio_work(struct work_struct *work)
 	struct block_device *bdev;
 	unsigned long flags;
 	struct bio *bio;
-	bool prepared;
+	bool prepared, serialized;
 
 	do {
 		/*
@@ -1425,6 +1437,7 @@ static void blk_zone_wplug_bio_work(struct work_struct *work)
 		}
 
 		bdev = bio->bi_bdev;
+		serialized = bio->bi_opf & REQ_ZONE_SERIALIZED;
 
 		/*
 		 * blk-mq devices will reuse the extra reference on the request
@@ -1438,6 +1451,9 @@ static void blk_zone_wplug_bio_work(struct work_struct *work)
 		} else {
 			blk_mq_submit_bio(bio);
 		}
+
+		if (serialized)
+			break;
 	} while (pipeline_zwr);
 
 put_zwplug:

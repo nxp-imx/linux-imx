@@ -179,7 +179,7 @@ static int fix_hyp_mmu_page_refcnt(void)
 #ifdef CONFIG_PKVM_X86_DEBUG
 	/*
 	 * Only the memory addresses under VMALLOC_START are mapped by the
-	 * pKVM hypervisor itself, thus only need to fix vmmemap for this
+	 * pKVM hypervisor itself, thus only need to fix vmemmap for this
 	 * range.
 	 */
 	size = VMALLOC_START & ~hyp_mmu.pgt_ops->level_to_mask(hyp_mmu.cap.level + 1);

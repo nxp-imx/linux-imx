@@ -82,6 +82,9 @@ static int zram_process_walker(pmd_t *pmd, unsigned long start,
 		pte = ptep_get(ptep);
 		pte_unmap_unlock(ptep, ptl);
 
+		if (!is_swap_pte(pte))
+			continue;
+
 		/*
 		 * We hold pte_offset_map_lock() to take an atomic snapshot of
 		 * the PTE into a local variable. Once we release the lock via
@@ -109,7 +112,7 @@ static int zram_process_walker(pmd_t *pmd, unsigned long start,
 		 */
 		entry = pte_to_swp_entry(pte);
 
-		if (!is_swap_pte(pte))
+		if (unlikely(non_swap_entry(entry)))
 			continue;
 
 		/* prevent the swapoff race condition */

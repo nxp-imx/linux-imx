@@ -209,7 +209,7 @@ q2_get_counter(const struct xt_quota_mtinfo2 *q)
 	/* No need to hold a lock while getting a new counter */
 	new_e = q2_new_counter(q, false);
 	if (new_e == NULL)
-		goto out;
+		return NULL;
 
 	spin_lock_bh(&counter_list_lock);
 	list_for_each_entry(e, &counter_list, list)
@@ -238,16 +238,17 @@ q2_get_counter(const struct xt_quota_mtinfo2 *q)
 
 	if (IS_ERR_OR_NULL(p)) {
 		spin_lock_bh(&counter_list_lock);
-		list_del(&e->list);
+		if (atomic_dec_and_test(&e->ref)) {
+			list_del(&e->list);
+			kfree(e);
+		} else {
+			e->procfs_entry = NULL;
+		}
 		spin_unlock_bh(&counter_list_lock);
-		goto out;
+		return NULL;
 	}
 	proc_set_user(p, quota_list_uid, quota_list_gid);
 	return e;
-
- out:
-	kfree(e);
-	return NULL;
 }
 
 static int quota_mt2_check(const struct xt_mtchk_param *par)

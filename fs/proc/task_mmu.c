@@ -104,7 +104,7 @@ unsigned long task_statm(struct mm_struct *mm,
 	*text = (__PAGE_ALIGN(mm->end_code) - (mm->start_code & __PAGE_MASK))
 								>> __PAGE_SHIFT;
 	*data = __page_size_count(mm->data_vm + mm->stack_vm);
-	*resident = __page_size_count(*shared + get_mm_counter_sum(mm, MM_ANONPAGES));
+	*resident = *shared + __page_size_count(get_mm_counter_sum(mm, MM_ANONPAGES));
 
 	return __page_size_count(mm->total_vm);
 }

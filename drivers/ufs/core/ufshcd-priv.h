@@ -6,6 +6,16 @@
 #include <linux/pm_runtime.h>
 #include <ufs/ufshcd.h>
 
+struct ufs_hba_priv {
+	struct ufs_hba hba;
+	bool zwor_sup;
+};
+
+static inline struct ufs_hba_priv *to_hba_priv(struct ufs_hba *hba)
+{
+	return container_of(hba, struct ufs_hba_priv, hba);
+}
+
 void ufshcd_enable_intr(struct ufs_hba *hba, u32 intrs);
 
 static inline bool ufshcd_is_user_access_allowed(struct ufs_hba *hba)

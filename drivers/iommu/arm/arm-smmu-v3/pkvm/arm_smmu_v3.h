@@ -20,7 +20,6 @@
  *
  * Other members are filled and used at runtime by the SMMU driver.
  * @base		Virtual address of SMMU registers
- * @ias			IPA size
  * @oas			PA size
  * @pgsize_bitmap	Supported page sizes
  * @lock		Lock to protect SMMU
@@ -32,7 +31,6 @@ struct hyp_arm_smmu_v3_device {
 	size_t			mmio_size;
 	void __iomem		*base;
 	u32			features;
-	unsigned long		ias;
 	unsigned long		oas;
 	unsigned long		pgsize_bitmap;
 	u32			lock;

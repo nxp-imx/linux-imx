@@ -1577,12 +1577,14 @@ EXPORT_SYMBOL(cfg80211_stop_link);
 
 void cfg80211_init_wdev(struct wireless_dev *wdev)
 {
+	BUILD_BUG_ON(sizeof(struct wiphy_work) > sizeof(struct work_struct));
+
 	INIT_LIST_HEAD(&wdev->event_list);
 	spin_lock_init(&wdev->event_lock);
 	INIT_LIST_HEAD(&wdev->mgmt_registrations);
 	INIT_LIST_HEAD(&wdev->pmsr_list);
 	spin_lock_init(&wdev->pmsr_lock);
-	INIT_WORK(&wdev->pmsr_free_wk, cfg80211_pmsr_free_wk);
+	wiphy_work_init(wdev_to_pmsr_wk(wdev), cfg80211_pmsr_free_wk);
 
 #ifdef CONFIG_CFG80211_WEXT
 	wdev->wext.default_key = -1;
@@ -1716,7 +1718,6 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 			cfg80211_remove_links(wdev);
 		/* since we just did cfg80211_leave() nothing to do there */
 		cancel_work_sync(&wdev->disconnect_wk);
-		cancel_work_sync(&wdev->pmsr_free_wk);
 		break;
 	case NETDEV_DOWN:
 		wiphy_lock(&rdev->wiphy);

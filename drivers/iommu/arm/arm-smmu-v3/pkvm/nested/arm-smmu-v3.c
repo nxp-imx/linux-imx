@@ -283,8 +283,6 @@ static int smmu_probe(struct hyp_arm_smmu_v3_nested_device *nested_smmu)
 	else if (!smmu->oas)
 		smmu->oas = 48;
 
-	smmu->ias = 64;
-	smmu->ias = min(smmu->ias, smmu->oas);
 	return 0;
 }
 
@@ -582,7 +580,7 @@ static int smmu_init_pgt(void)
 	struct io_pgtable_ops *ops;
 
 	for_each_smmu(nested_smmu) {
-		cfg.ias = min(cfg.ias, nested_smmu->common.ias);
+		cfg.ias = min(cfg.ias, nested_smmu->common.oas);
 		cfg.oas = min(cfg.oas, nested_smmu->common.oas);
 		cfg.pgsize_bitmap &= nested_smmu->common.pgsize_bitmap;
 		cfg.coherent_walk &= !!(nested_smmu->common.features & ARM_SMMU_FEAT_COHERENCY);

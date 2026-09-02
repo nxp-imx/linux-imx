@@ -1136,6 +1136,12 @@ found:
 	if (!best || (curr && entity_before(curr, best)))
 		best = curr;
 
+	/* EEVDF search sched entity fail, so picking leftmost */
+	if (!best) {
+		best = __pick_first_entity(cfs_rq);
+		printk_deferred("EEVDF scheduling fail, picking leftmost\n");
+	}
+
 	return best;
 }
 
@@ -5800,7 +5806,7 @@ pick_next_entity(struct rq *rq, struct cfs_rq *cfs_rq)
 	}
 
 	se = pick_eevdf(cfs_rq);
-	if (se->sched_delayed) {
+	if (se && se->sched_delayed) {
 		dequeue_entities(rq, se, DEQUEUE_SLEEP | DEQUEUE_DELAYED);
 		/*
 		 * Must not reference @se again, see __block_task().

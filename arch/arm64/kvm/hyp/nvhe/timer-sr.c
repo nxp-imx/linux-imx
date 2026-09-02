@@ -7,6 +7,7 @@
 #include <clocksource/arm_arch_timer.h>
 #include <linux/compiler.h>
 #include <linux/kvm_host.h>
+#include <linux/math64.h>
 
 #include <asm/kvm_hyp.h>
 #include <asm/kvm_mmu.h>
@@ -93,7 +94,7 @@ int pkvm_timer_init(void)
 	return 0;
 }
 
-#define pkvm_time_ticks_to_us(ticks) ((u64)(ticks) * SEC_TO_US / timer_freq)
+#define pkvm_time_ticks_to_us(ticks) mul_u64_u32_div(ticks, SEC_TO_US, timer_freq)
 
 /* Return time in us. */
 u64 pkvm_time_get(void)

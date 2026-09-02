@@ -828,7 +828,7 @@ static inline void push_pkvm_memcache(struct pkvm_memcache *mc,
 {
 	struct pkvm_page_range *head = addr;
 
-	if (WARN_ON_ONCE(!PAGE_ALIGNED(addr) || !PAGE_ALIGNED(size)))
+	if (WARN_ON_ONCE(!PAGE_ALIGNED(addr) || !size || !PAGE_ALIGNED(size)))
 		return;
 
 	*head = mc->head;

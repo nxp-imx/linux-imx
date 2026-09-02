@@ -1,4 +1,5 @@
 [abi_symbol_list]
+  __alloc_frozen_pages_noprof
   bdev_file_open_by_dev
   bdev_file_open_by_path
   bdev_fput
@@ -10,6 +11,7 @@
   crypto_alloc_acomp
   device_match_name
   __devm_alloc_percpu
+  devm_clk_get_optional_enabled_with_rate
   dummy_irq_chip
   file_bdev
   filemap_fdatawrite_range_kick
@@ -19,6 +21,7 @@
   flush_dcache_page
   free_hpage
   generic_file_read_iter
+  generic_mii_ioctl
   generic_perform_write
   generic_write_checks
   getboottime64
@@ -35,6 +38,9 @@
   mas_walk
   mas_prev
   mas_next
+  mii_check_media
+  mii_ethtool_gset
+  mii_nway_restart
   mm_access
   panic_in_progress
   phy_connect_direct
@@ -102,6 +108,7 @@
   __traceiter_android_vh_oom_killer_disable
   __traceiter_android_vh_page_cache_read
   __traceiter_android_vh_process_madvise_return_error
+  __traceiter_android_vh_reasm_timer_adjust
   __traceiter_android_vh_rebalance_anon_lru_bypass
   __traceiter_android_vh_rtmutex_wait_finish
   __traceiter_android_vh_rtmutex_wait_start
@@ -180,6 +187,7 @@
   __tracepoint_android_vh_oom_killer_disable
   __tracepoint_android_vh_page_cache_read
   __tracepoint_android_vh_process_madvise_return_error
+  __tracepoint_android_vh_reasm_timer_adjust
   __tracepoint_android_vh_rebalance_anon_lru_bypass
   __tracepoint_android_vh_rtmutex_wait_finish
   __tracepoint_android_vh_rtmutex_wait_start
@@ -220,19 +228,30 @@
   unregister_restart_handler
   usbnet_change_mtu
   usbnet_defer_kevent
+  usbnet_disconnect
   usbnet_get_drvinfo
   usbnet_get_endpoints
   usbnet_get_link
   usbnet_get_link_ksettings_mii
   usbnet_get_msglevel
   usbnet_nway_reset
+  usbnet_open
+  usbnet_probe
   usbnet_read_cmd
   usbnet_read_cmd_nopm
+  usbnet_resume
   usbnet_set_link_ksettings_mii
   usbnet_set_msglevel
+  usbnet_skb_return
+  usbnet_start_xmit
+  usbnet_stop
+  usbnet_suspend
+  usbnet_tx_timeout
   usbnet_write_cmd
   usbnet_write_cmd_async
   usbnet_write_cmd_nopm
+  usb_alloc_dev
+  usb_set_device_state
   vfs_fsync_range
   yield
   start_creating_path

@@ -22,6 +22,7 @@ pkvm-hyp-y			+= $(pkvm-lib)/find_bit.o $(pkvm-lib)/printf.o
 kernel-x86-lib			:= ../../lib
 pkvm-hyp-y			+= $(kernel-x86-lib)/memset_64.o
 pkvm-hyp-y			+= $(kernel-x86-lib)/memcpy_64.o
+pkvm-hyp-y			+= $(kernel-x86-lib)/hweight.o
 
 pkvm-hyp-$(CONFIG_MITIGATION_RETPOLINE)	+= retpoline.o
 $(obj)/retpoline.pkvm.o: $(obj)/retpoline.pkvm.S FORCE
@@ -33,8 +34,8 @@ quiet_cmd_patch_retpoline = PATCH_RETPOLINE $@
 
 kernel-lib			:= ../../../../lib
 pkvm-hyp-y			+= $(kernel-lib)/sort.o $(kernel-lib)/bsearch.o \
-				   $(kernel-lib)/extable.o $(kernel-lib)/hweight.o \
-				   $(kernel-lib)/string.o $(kernel-lib)/ctype.o
+				   $(kernel-lib)/extable.o $(kernel-lib)/string.o \
+				   $(kernel-lib)/ctype.o
 pkvm-hyp-$(CONFIG_LIST_HARDENED) += $(kernel-lib)/list_debug.o
 
 CFLAGS_REMOVE_$(kernel-lib)/string.pkvm.o := -D__NO_FORTIFY

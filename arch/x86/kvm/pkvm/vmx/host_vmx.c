@@ -39,13 +39,15 @@ static struct pkvm_init_ops vmx_init_ops = {
 
 struct pkvm_init_ops *pkvm_vmx_init_ops = &vmx_init_ops;
 
-static void skip_emulated_instruction(void)
+static void skip_emulated_instruction(struct kvm_vcpu *vcpu)
 {
 	unsigned long rip;
 
 	rip = vmcs_readl(GUEST_RIP);
 	rip += vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
 	vmcs_writel(GUEST_RIP, rip);
+
+	vmx_set_interrupt_shadow(vcpu, 0);
 }
 
 static void handle_irq_window(struct kvm_vcpu *vcpu)
@@ -348,6 +350,18 @@ static void handle_pending_events(struct kvm_vcpu *vcpu, bool *req_immediate_exi
 			vmx_inject_exception(vcpu);
 			vcpu->arch.exception.pending = false;
 			vcpu->arch.exception.injected = true;
+
+			if (vmcs_readl(GUEST_CR4) & X86_CR4_FRED) {
+				/*
+				 * KVM doesn't implement FRED virtualization yet, so
+				 * cannot rely on vmx_inject_exception() to deliver
+				 * the fault address on #PF injection if FRED is
+				 * enabled in the host. Do that manually here instead.
+				 */
+				vmcs_write64(INJECTED_EVENT_DATA,
+					     vcpu->arch.exception.vector == PF_VECTOR ?
+					     vcpu->arch.cr2 : 0);
+			}
 		}
 
 		if (vcpu->arch.nmi_pending) {
@@ -443,11 +457,12 @@ void pkvm_host_vmexit_main(struct vcpu_vmx *vmx)
 	default:
 		pkvm_err_ratelimited("Unsupported vmexit reason 0x%x.\n",
 				      vt->exit_reason.full);
+		kvm_inject_gp(vcpu, 0);
 		break;
 	}
 
 	if (skip_instruction)
-		skip_emulated_instruction();
+		skip_emulated_instruction(vcpu);
 
 handle_events:
 	handle_pending_events(vcpu, &req_immediate_exit);

@@ -340,8 +340,6 @@ static int __init early_hyp_lm_size_mb_cfg(char *arg)
 }
 early_param("kvm-arm.hyp_lm_size_mb", early_hyp_lm_size_mb_cfg);
 
-DEFINE_STATIC_KEY_FALSE(kvm_ffa_unmap_on_lend);
-
 static int __init early_ffa_max_nr_constituents(char *arg)
 {
 	return kstrtoul(arg, 10, &kvm_nvhe_sym(ffa_max_nr_constituents));
@@ -2063,7 +2061,21 @@ int __pkvm_handle_smccc_req(struct arm_smccc_res *res, void *arg)
 
 static int early_ffa_unmap_on_lend_cfg(char *arg)
 {
-	static_branch_enable(&kvm_ffa_unmap_on_lend);
+	bool enable;
+
+	if (!arg)
+		kvm_nvhe_sym(__pkvm_ffa_unmap_on_lend) = PKVM_FFA_UNMAP_ON_LEND_ON;
+	else if (!strcmp(arg, "full"))
+		kvm_nvhe_sym(__pkvm_ffa_unmap_on_lend) = PKVM_FFA_UNMAP_ON_LEND_FULL;
+	else {
+		if (!kstrtobool(arg, &enable)) {
+			kvm_nvhe_sym(__pkvm_ffa_unmap_on_lend) = enable;
+		} else {
+			kvm_err("kvm-arm.ffa-unmap-on-lend: Unknown argument '%s'\n", arg);
+			return -EINVAL;
+		}
+	}
+
 	return 0;
 }
 early_param("kvm-arm.ffa-unmap-on-lend", early_ffa_unmap_on_lend_cfg);

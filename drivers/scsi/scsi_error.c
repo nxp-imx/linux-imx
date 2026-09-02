@@ -46,6 +46,8 @@
 #include "scsi_logging.h"
 #include "scsi_transport_api.h"
 
+#include "../block/blk-mq-debugfs.h"
+
 #include <trace/events/scsi.h>
 
 #include <linux/unaligned.h>
@@ -743,10 +745,27 @@ enum scsi_disposition scsi_check_sense(struct scsi_cmnd *scmd)
 		    blk_pipeline_zwr(req->q) &&
 		    blk_rq_is_seq_zoned_write(req) &&
 		    scsi_cmd_retry_allowed(scmd)) {
-			SCSI_LOG_ERROR_RECOVERY(1,
-				sdev_printk(KERN_WARNING, scmd->device,
-				"Retrying unaligned write at LBA %#llx.\n",
-				scsi_get_lba(scmd)));
+			char rq_info[256];
+			struct seq_file m = {
+				.buf = rq_info,
+				.size = ARRAY_SIZE(rq_info),
+			};
+
+#ifdef CONFIG_BLK_DEBUG_FS
+			__blk_mq_debugfs_rq_show(&m, req);
+#else
+			seq_puts(&m, "(debugfs is disabled)");
+#endif
+
+			sdev_printk(
+				KERN_WARNING, scmd->device,
+				"Retrying unaligned write for zone %u; offset %llu; zone offset %llu; I/O scheduler %s; rq %.*s.\n",
+				disk_zone_no(req->q->disk, blk_rq_pos(req)),
+				blk_rq_pos(req),
+				bdev_offset_from_zone_start(req->q->disk->part0,
+							    blk_rq_pos(req)),
+				req->q->elevator ? "(set)" : "(none)",
+				(int)m.count, rq_info);
 			return NEEDS_RETRY;
 		}
 

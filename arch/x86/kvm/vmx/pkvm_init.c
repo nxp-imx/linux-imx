@@ -464,7 +464,7 @@ static __init int pkvm_setup_per_cpu(int cpu)
 	 * as the same percpu base will be used by the pKVM and the host in the
 	 * debug build.
 	 */
-	if (pkvm_sym(pkvm_setup_per_cpu)(cpu, __pa(__per_cpu_offset[cpu]),
+	if (pkvm_sym(pkvm_setup_per_cpu)(cpu, __per_cpu_offset[cpu],
 					 __pa(pcpu), __pa(vcpu))) {
 		pr_err("no percpu page for CPU%d\n", cpu);
 		return -ENOMEM;
@@ -1049,12 +1049,6 @@ static __init void init_execution_control(struct vcpu_vmx *vmx)
 	if (boot_cpu_has(X86_FEATURE_INTEL_PT))
 		secondary_exec_controls_clearbit(vmx, SECONDARY_EXEC_PT_USE_GPA);
 
-	/*
-	 * Shadow VMCS will not be used as the VMCS will be exposed via PV-based
-	 * method.
-	 */
-	vmcs_write64(VMCS_LINK_POINTER, INVALID_GPA);
-
 	/* Host VM owns cr3 */
 	vmcs_write32(CR3_TARGET_COUNT, 0);
 
@@ -1130,6 +1124,7 @@ static __init void init_vmentry_control(struct vcpu_vmx *vmx)
 static __init int pkvm_host_init_vmx(struct vcpu_vmx *vmx)
 {
 	vmx->loaded_vmcs = &vmx->vmcs01;
+	vmcs_clear(vmx->loaded_vmcs->vmcs);
 	vmcs_load(vmx->loaded_vmcs->vmcs);
 	vmx->loaded_vmcs->cpu = smp_processor_id();
 
@@ -1173,16 +1168,11 @@ static noinline int local_deprivilege_cpu(void)
 static DEFINE_PER_CPU(bool, deprivileged);
 static __init void pkvm_host_reprivilege_cpu(void *data)
 {
-	unsigned long flags;
-	int cpu = get_cpu();
+	int cpu = smp_processor_id();
 	int ret;
 
-	if (!this_cpu_read(deprivileged)) {
-		put_cpu();
+	if (!this_cpu_read(deprivileged))
 		return;
-	}
-
-	local_irq_save(flags);
 
 	/*
 	 * Load the RW GDT page for reprivilege code
@@ -1209,12 +1199,9 @@ static __init void pkvm_host_reprivilege_cpu(void *data)
 		this_cpu_write(deprivileged, false);
 		kvm_cpu_vmxoff();
 		pr_info("%s: CPU%d back in host mode\n", __func__, cpu);
-	} else {
-		pr_warn("%s: CPU%d failed to reprivilege(err=%d)\n", __func__, cpu, ret);
 	}
 
-	local_irq_restore(flags);
-	put_cpu();
+	*(int *)data = ret;
 }
 
 static __init void pkvm_host_reprivilege_cpus(void)
@@ -1222,11 +1209,16 @@ static __init void pkvm_host_reprivilege_cpus(void)
 	int cpu;
 
 	for_each_possible_cpu(cpu) {
+		int ret, reprivilege_ret = 0;
+
 		if (!per_cpu(deprivileged, cpu))
 			continue;
 
-		smp_call_function_single(cpu, pkvm_host_reprivilege_cpu,
-					 NULL, true);
+		ret = smp_call_function_single(cpu, pkvm_host_reprivilege_cpu,
+					       &reprivilege_ret, true);
+		if (ret || reprivilege_ret)
+			panic("CPU%d failed to reprivilege(smp_call=%d, reprivilege=%d)\n",
+			      cpu, ret, reprivilege_ret);
 	}
 }
 

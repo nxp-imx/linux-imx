@@ -37,11 +37,13 @@
   __traceiter_android_vh_remove_mapping
   __traceiter_android_vh_remove_mapping_failed
   __traceiter_android_vh_filemap_get_folio_end
+  __traceiter_android_vh_unlock_mmap_bypass
   __traceiter_android_vh_do_new_mount_fc
   __traceiter_android_vh_put_super
   __tracepoint_android_vh_remove_mapping
   __tracepoint_android_vh_remove_mapping_failed
   __tracepoint_android_vh_filemap_get_folio_end
+  __tracepoint_android_vh_unlock_mmap_bypass
   __tracepoint_android_vh_do_new_mount_fc
   __tracepoint_android_vh_put_super
   LZ4_compress_default
@@ -104,6 +106,16 @@
   blkcg_root
   blkcg_activate_policy
   blkcg_deactivate_policy
+
+#required by iostat.ko
+  __traceiter_android_vh_erofs_iostat_submit
+  __traceiter_android_vh_erofs_iostat_update
+  __tracepoint_android_vh_erofs_iostat_submit
+  __tracepoint_android_vh_erofs_iostat_update
+  __traceiter_android_vh_f2fs_iostat_submit
+  __traceiter_android_vh_f2fs_iostat_update
+  __tracepoint_android_vh_f2fs_iostat_submit
+  __tracepoint_android_vh_f2fs_iostat_update
 
 #required by zram.ko module
   __traceiter_android_vh_handle_folio_writeback

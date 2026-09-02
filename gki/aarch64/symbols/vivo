@@ -240,6 +240,7 @@
   __traceiter_sys_exit
   __tracepoint_android_rvh_alloc_and_link_pwqs
   __traceiter_task_newtask
+  __traceiter_android_rvh_freq_qos_update_request_v2
   __tracepoint_android_rvh_alloc_pages_reclaim_cycle_end
   __tracepoint_android_rvh_alloc_pages_reclaim_start
   __tracepoint_android_vh_mglru_aging_bypass
@@ -395,6 +396,7 @@
   __tracepoint_signal_generate
   __tracepoint_sys_exit
   __tracepoint_task_newtask
+  __tracepoint_android_rvh_freq_qos_update_request_v2
   ucsi_send_command
   unlock_buffer
   __wait_on_buffer

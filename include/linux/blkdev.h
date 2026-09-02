@@ -889,6 +889,12 @@ static inline bool blk_pipeline_zwr(struct request_queue *q)
 	return q->limits.features & BLK_FEAT_ORDERED_HWQ;
 }
 
+/* Whether or not to use the zone write order restore feature. */
+static inline bool blk_use_zwor(struct request_queue *q)
+{
+	return q->limits.features & BLK_FEAT_ZWOR;
+}
+
 /**
  * bio_needs_zone_write_plugging - Check if a BIO needs to be handled with zone
  *				   write plugging
@@ -968,6 +974,11 @@ static inline unsigned int disk_nr_zones(struct gendisk *disk)
 }
 
 static inline bool blk_pipeline_zwr(struct request_queue *q)
+{
+	return false;
+}
+
+static inline bool blk_use_zwor(struct request_queue *q)
 {
 	return false;
 }

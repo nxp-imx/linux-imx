@@ -553,14 +553,25 @@ kernel_build(
     defconfig = "arch/arm64/configs/microdroid_defconfig",
     make_goals = [
         "Image",
+        "modules",
     ],
     makefile = ":Makefile",
+    module_outs = [
+        "drivers/dma-buf/heaps/system_heap.ko",
+        "drivers/iommu/pkvm-pviommu.ko",
+    ],
+)
+
+kernel_modules_install(
+    name = "kernel_aarch64_microdroid_modules_install",
+    kernel_build = ":kernel_aarch64_microdroid",
 )
 
 pkg_files(
     name = "kernel_aarch64_microdroid_dist_files",
     srcs = [
         ":kernel_aarch64_microdroid",
+        ":kernel_aarch64_microdroid_modules_install",
     ],
     strip_prefix = strip_prefix.files_only(),
     visibility = ["//visibility:private"],

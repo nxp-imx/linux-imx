@@ -681,6 +681,8 @@ static __always_inline unsigned long arch_local_irq_save(void)
 }
 #endif
 
+DECLARE_STATIC_KEY_FALSE(pv_mmio);
+
 static __always_inline unsigned char pv_readb(const volatile void __iomem *addr)
 {
 	return PVOP_CALL1(unsigned char, mmio.raw_readb, addr);

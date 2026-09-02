@@ -4,6 +4,4 @@
 
 extern atomic_t pkvm_panic_in_progress;
 
-void __noreturn pkvm_panic(const char *fmt, ...);
-
 #endif /* __PKVM_X86_PANIC_H */

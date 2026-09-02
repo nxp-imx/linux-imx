@@ -43,6 +43,8 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/block.h>
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/blk.h>
 
 #include "blk.h"
 #include "blk-mq-sched.h"
@@ -636,7 +638,7 @@ static void __submit_bio(struct bio *bio)
 	/* If plug is not used, add new plug here to cache nsecs time. */
 	struct blk_plug plug;
 
-	if (unlikely(!blk_crypto_bio_prep(&bio)))
+	if (unlikely(!blk_crypto_bio_prep(bio)))
 		return;
 
 	blk_start_plug(&plug);
@@ -960,6 +962,7 @@ void submit_bio(struct bio *bio)
 	}
 
 	bio_set_ioprio(bio);
+	trace_android_vh_set_ioprio(bio);
 	submit_bio_noacct(bio);
 }
 EXPORT_SYMBOL(submit_bio);

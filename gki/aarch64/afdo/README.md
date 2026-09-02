@@ -5,8 +5,8 @@ optimize kernel builds, improving performance for specific architectures and ker
 
 ## Profile Availability
 
-kernel.afdo is an AArch64 kernel profile collected on kernel version 6.18.21 (
-SHA 3ad9926a5d177675fe818af93dcb3451532c3165, build server ID 15434288). It is updated
+kernel.afdo is an AArch64 kernel profile collected on kernel version 6.18.32 (
+SHA 34cb3812e87a5b125ebc50a3ff7414948af70d80, build server ID 16114748). It is updated
 regularly in [kernel.afdo](https://android.googlesource.com/kernel/common/+/refs/heads/android17-6.18/gki/aarch64/afdo/).
 
 
@@ -20,16 +20,19 @@ matures.
 
 Benchmark results were tested on Pixel 8.
 
-| Benchmark             | Improvement |
-| --------------------- | ----------- |
-| Boot time             | 1.1%        |
-| Cold App launch time  | 6.6%        |
-| Binder-rpc            | 15%*        |
-| Binder-addints        | 23%*        |
-| Hwbinder              | 23%*        |
+| Benchmark             | Improvement (Mean / Best-case)* |
+| --------------------- | ------------------------------- |
+| Boot time             | 1.6%                            |
+| Cold App launch time  | 3.3%                            |
+| Binder-rpc            | 6.7% (up to 20.7%)*             |
+| Binder-addints        | 4.1% (up to 30.6%)*             |
+| Hwbinder              | 7.1% (up to 26.0%)*             |
 
-\* For the binder benchmarks, the reported values represent the best result observed across
-multiple runs to account for variance.
+\* For binder benchmarks, both the average improvement (mean_diff) and the best observed improvement
+(min_diff) are reported. The benchmark results currently exhibit variance because the 6.18 kernel
+is in an early bringup stage on Pixel test devices (where power management, CPU frequency scaling,
+and scheduler tuning are still maturing), which introduces scheduling jitter and tail latency spikes
+that affect the mean improvement despite substantial peak and median gains.
 
 ## Steps to reproduce the profile
 

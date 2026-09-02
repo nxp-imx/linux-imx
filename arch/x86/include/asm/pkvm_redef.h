@@ -52,8 +52,6 @@
 
 #endif /* CONFIG_PKVM_X86_DEBUG */
 
-void __noreturn pkvm_panic(const char *fmt, ...);
-
 /*
  * Directly call the panic handler with file/line info. This avoids the use
  * of 'ud2' instructions and associated 'bug_table' metadata parsing, which
@@ -63,11 +61,8 @@ void __noreturn pkvm_panic(const char *fmt, ...);
  * the host's metadata.
  */
 #undef BUG
-#define BUG() do { pkvm_panic("\n==================================\n"	\
-			      "pKVM BUG at %s:%u\n"			\
-			      "==================================\n",	\
-			       __FILE__, __LINE__);			\
-			      __builtin_unreachable();			\
+#define BUG() do { panic("pKVM BUG at %s:%u\n",  __FILE__, __LINE__);	\
+		  __builtin_unreachable();				\
 		} while (0)
 
 #undef BUG_ON

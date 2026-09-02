@@ -53,6 +53,8 @@ static bool fuse_prog_is_valid_access(int off, int size,
 		if (off == offsetof(struct fuse_bpf_args, out_args[i].value)) {
 			info->reg_type = PTR_TO_BUF;
 			info->ctx_field_size = 256;
+			if (type != BPF_READ)
+				return false;
 			return true;
 		}
 	}

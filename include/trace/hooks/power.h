@@ -29,6 +29,11 @@ DECLARE_HOOK(android_vh_freq_qos_update_request,
 		TP_PROTO(struct freq_qos_request *req, int value),
 		TP_ARGS(req, value));
 
+DECLARE_RESTRICTED_HOOK(android_rvh_freq_qos_update_request_v2,
+	TP_PROTO(struct freq_qos_request *req, int value, bool *skip),
+	TP_ARGS(req, value, skip),
+	1);
+
 DECLARE_HOOK(android_vh_freq_qos_remove_request,
 		TP_PROTO(struct freq_qos_request *req),
 		TP_ARGS(req));

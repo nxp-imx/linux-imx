@@ -47,11 +47,11 @@ int pkvm_set_mem_host_visibility(unsigned long addr, int numpages, bool enc)
 static int pkvm_virt_mmio(int size, bool write, unsigned long vaddr, unsigned long *val)
 {
 	unsigned long paddr;
+	unsigned int level;
 	pte_t *pte;
-	int level;
 
 	pte = lookup_address(vaddr, &level);
-	if (WARN_ON_ONCE(!pte))
+	if (WARN_ON_ONCE(!pte || !(pte_flags(*pte) & _PAGE_PRESENT)))
 		return -EIO;
 
 	paddr = (pte_pfn(*pte) << PAGE_SHIFT) | (vaddr & ~page_level_mask(level));
@@ -184,6 +184,8 @@ __init void pkvm_guest_init_coco(void)
 	pv_ops.mmio.pci_mmcfg_writeb = pkvm_mmio_writeb;
 	pv_ops.mmio.pci_mmcfg_writew = pkvm_mmio_writew;
 	pv_ops.mmio.pci_mmcfg_writel = pkvm_mmio_writel;
+
+	static_branch_enable(&pv_mmio);
 
 	apic_update_callback(wakeup_secondary_cpu, pkvm_wakeup_secondary_cpu);
 

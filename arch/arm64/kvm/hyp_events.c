@@ -9,6 +9,7 @@
 
 #include <asm/kvm_host.h>
 #include <asm/kvm_mmu.h>
+#include <asm/kvm_pkvm.h>
 #include <asm/text-patching.h>
 #include <asm/setup.h>
 
@@ -257,7 +258,7 @@ static void hyp_ftrace_sync(bool force_enable, bool force_sync)
 	}
 
 	for_each_funcs_pg(func_pg)
-		kvm_call_hyp_nvhe(__pkvm_sync_ftrace, func_pg);
+		kvm_call_refill_hyp_nvhe(__pkvm_sync_ftrace, func_pg);
 
 	enabled = true;
 }

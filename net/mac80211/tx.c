@@ -5,7 +5,7 @@
  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
  * Copyright 2007	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
- * Copyright (C) 2018-2025 Intel Corporation
+ * Copyright (C) 2018-2026 Intel Corporation
  *
  * Transmit and frame generation functions.
  */
@@ -1312,13 +1312,19 @@ static struct txq_info *ieee80211_get_txq(struct ieee80211_local *local,
 	    unlikely(!ieee80211_is_data_present(hdr->frame_control))) {
 		if ((!ieee80211_is_mgmt(hdr->frame_control) ||
 		     ieee80211_is_bufferable_mmpdu(skb) ||
-		     vif->type == NL80211_IFTYPE_STATION) &&
+		     vif->type == NL80211_IFTYPE_STATION ||
+		     vif->type == NL80211_IFTYPE_NAN ||
+		     vif->type == NL80211_IFTYPE_NAN_DATA) &&
 		    sta && sta->uploaded) {
 			/*
 			 * This will be NULL if the driver didn't set the
 			 * opt-in hardware flag.
 			 */
 			txq = sta->sta.txq[IEEE80211_NUM_TIDS];
+		} else if ((!ieee80211_is_mgmt(hdr->frame_control) ||
+			    ieee80211_is_bufferable_mmpdu(skb)) &&
+			   !sta) {
+			txq = vif->txq_mgmt;
 		}
 	} else if (sta) {
 		u8 tid = skb->priority & IEEE80211_QOS_CTL_TID_MASK;
@@ -1511,9 +1517,15 @@ void ieee80211_txq_init(struct ieee80211_sub_if_data *sdata,
 	txqi->txq.vif = &sdata->vif;
 
 	if (!sta) {
-		sdata->vif.txq = &txqi->txq;
-		txqi->txq.tid = 0;
-		txqi->txq.ac = IEEE80211_AC_BE;
+		txqi->txq.tid = tid;
+
+		if (tid == IEEE80211_NUM_TIDS) {
+			sdata->vif.txq_mgmt = &txqi->txq;
+			txqi->txq.ac = IEEE80211_AC_VO;
+		} else {
+			sdata->vif.txq = &txqi->txq;
+			txqi->txq.ac = IEEE80211_AC_BE;
+		}
 
 		return;
 	}
@@ -2531,6 +2543,13 @@ int ieee80211_lookup_ra_sta(struct ieee80211_sub_if_data *sdata,
 		if (!sta)
 			return -ENOLINK;
 		break;
+	case NL80211_IFTYPE_NAN_DATA:
+		if (is_multicast_ether_addr(skb->data)) {
+			*sta_out = ERR_PTR(-ENOENT);
+			return 0;
+		}
+		sta = sta_info_get(sdata, skb->data);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -2824,18 +2843,37 @@ static struct sk_buff *ieee80211_build_hdr(struct ieee80211_sub_if_data *sdata,
 		memcpy(hdr.addr3, sdata->u.ibss.bssid, ETH_ALEN);
 		hdrlen = 24;
 		break;
+	case NL80211_IFTYPE_NAN_DATA: {
+		struct ieee80211_sub_if_data *nmi;
+
+		/* DA SA Cluster ID */
+		memcpy(hdr.addr1, skb->data, ETH_ALEN);
+		memcpy(hdr.addr2, skb->data + ETH_ALEN, ETH_ALEN);
+		nmi = rcu_dereference(sdata->u.nan_data.nmi);
+		if (!nmi) {
+			ret = -ENOTCONN;
+			goto free;
+		}
+		memcpy(hdr.addr3, nmi->u.nan.conf.cluster_id, ETH_ALEN);
+		hdrlen = 24;
+		break;
+	}
 	default:
 		ret = -EINVAL;
 		goto free;
 	}
 
 	if (!chanctx_conf) {
-		if (!ieee80211_vif_is_mld(&sdata->vif)) {
+		if (sdata->vif.type == NL80211_IFTYPE_NAN_DATA) {
+			 /* NAN operates on multiple bands */
+			band = NUM_NL80211_BANDS;
+		} else if (!ieee80211_vif_is_mld(&sdata->vif)) {
 			ret = -ENOTCONN;
 			goto free;
+		} else {
+			/* MLD transmissions must not rely on the band */
+			band = 0;
 		}
-		/* MLD transmissions must not rely on the band */
-		band = 0;
 	} else {
 		band = chanctx_conf->def.chan->band;
 	}
@@ -3878,7 +3916,7 @@ begin:
 		 * injected frames or EAPOL frames from the local station.
 		 */
 		if (unlikely(!(info->flags & IEEE80211_TX_CTL_INJECTED) &&
-			     ieee80211_is_data(hdr->frame_control) &&
+			     ieee80211_is_data_present(hdr->frame_control) &&
 			     !ieee80211_vif_is_mesh(&tx.sdata->vif) &&
 			     tx.sdata->vif.type != NL80211_IFTYPE_OCB &&
 			     !is_multicast_ether_addr(hdr->addr1) &&
@@ -6296,7 +6334,8 @@ void ieee80211_tx_skb_tid(struct ieee80211_sub_if_data *sdata,
 	enum nl80211_band band;
 
 	rcu_read_lock();
-	if (sdata->vif.type == NL80211_IFTYPE_NAN) {
+	if (sdata->vif.type == NL80211_IFTYPE_NAN ||
+	    sdata->vif.type == NL80211_IFTYPE_NAN_DATA) {
 		band = NUM_NL80211_BANDS;
 	} else if (!ieee80211_vif_is_mld(&sdata->vif)) {
 		WARN_ON(link_id >= 0);

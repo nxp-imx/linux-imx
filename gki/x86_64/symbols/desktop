@@ -1042,8 +1042,10 @@
   drm_probe_ddc
   drm_property_blob_get
   drm_property_blob_put
+  drm_property_create
   drm_property_create_blob
   drm_property_create_enum
+  drm_property_lookup_blob
   drm_property_replace_blob
   drm_puts
   __drm_puts_coredump
@@ -2065,6 +2067,8 @@
   page_get_link
   page_is_ram
   page_offset_base
+  page_pinner_inited
+  __page_pinner_put_page
   page_pool_alloc_frag
   page_pool_create
   page_pool_destroy
@@ -2367,6 +2371,7 @@
   __put_user_1
   __put_user_4
   __put_user_8
+  pv_mmio
   pv_ops
   queue_delayed_work_on
   queue_limits_commit_update_frozen
@@ -2426,6 +2431,7 @@
   regcache_reg_cached
   regcache_sync
   regcache_sync_region
+  region_intersects
   register_acpi_notifier
   __register_blkdev
   __register_chrdev
@@ -3023,6 +3029,7 @@
   stop_tty
   strcasecmp
   strchr
+  strchrnul
   strcmp
   strcpy
   strcspn
@@ -3283,10 +3290,10 @@
   typec_altmode_vdm
   typec_cable_altmode_enter
   typec_cable_altmode_exit
+  typec_cable_altmode_unsupported
   typec_cable_get
   typec_cable_is_active
   typec_cable_put
-  typec_cable_altmode_unsupported
   typec_find_orientation
   typec_find_port_data_role
   typec_find_port_power_role

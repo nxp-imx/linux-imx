@@ -167,6 +167,8 @@ static int kvm_iommu_snapshot_host_stage2(struct kvm_iommu_ops *ops)
 
 	hyp_spin_lock(&host_mmu.lock);
 	ret = kvm_pgtable_walk(pgt, 0, BIT(pgt->ia_bits), &walker);
+	if (!ret && ops->host_stage2_idmap_complete)
+		ops->host_stage2_idmap_complete(true);
 	hyp_spin_unlock(&host_mmu.lock);
 
 	return ret;

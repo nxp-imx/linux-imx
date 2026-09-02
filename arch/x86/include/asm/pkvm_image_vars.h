@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-#ifndef _ASM_x86_PKVM_IMAGE_VARS_H
-#define _ASM_x86_PKVM_IMAGE_VARS_H
+#ifndef _ASM_X86_PKVM_IMAGE_VARS_H
+#define _ASM_X86_PKVM_IMAGE_VARS_H
 
 #ifdef CONFIG_PKVM_X86_DEBUG
 
@@ -12,7 +12,9 @@
 #define PKVM_ALIAS(sym)  pkvm_sym(sym) = sym;
 
 PKVM_ALIAS(_printk);
+#ifdef CONFIG_BUG
 PKVM_ALIAS(__warn_printk);
+#endif
 PKVM_ALIAS(___ratelimit);
 PKVM_ALIAS(__trace_bputs);
 PKVM_ALIAS(__trace_bprintk);
@@ -22,4 +24,4 @@ PKVM_ALIAS(vmalloc_base);
 PKVM_ALIAS(get_cpu_entry_area);
 #endif
 
-#endif /* _ASM_x86_PKVM_IMAGE_VARS_H */
+#endif /* _ASM_X86_PKVM_IMAGE_VARS_H */

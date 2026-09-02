@@ -2416,6 +2416,10 @@ int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 						      MSR_TYPE_RW);
 			vcpu->arch.xfd_no_write_intercept = true;
 			vmx_update_exception_bitmap(vcpu);
+#ifdef __PKVM_HYP__
+			if (!pkvm_is_protected_vcpu(vcpu))
+				to_pkvm_vcpu(vcpu)->shared_vcpu->arch.xfd_no_write_intercept = true;
+#endif
 		}
 		break;
 #endif
@@ -5878,7 +5882,7 @@ static int handle_io(struct kvm_vcpu *vcpu)
 	 */
 	if ((vmx_get_exit_qual(vcpu) & 16) != 0) {
 		if (pkvm_is_protected_vcpu(vcpu)) {
-			kvm_queue_exception(vcpu, GP_VECTOR);
+			kvm_inject_gp(vcpu, 0);
 			return 1;
 		}
 	}
@@ -6273,7 +6277,7 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 	 * the pVM by injecting #GP.
 	 */
 	if (pkvm_is_protected_vcpu(vcpu)) {
-		kvm_queue_exception(vcpu, GP_VECTOR);
+		kvm_inject_gp(vcpu, 0);
 		return 1;
 	}
 #endif
@@ -9928,6 +9932,19 @@ static void share_nonprotected_vcpu_state(struct kvm_vcpu *vcpu,
 		to_vmx(shared_vcpu)->instr_info = vmcs_read32(VMX_INSTRUCTION_INFO);
 		shared_vcpu->arch.event_exit_inst_len = vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
 		break;
+	case EXIT_REASON_TASK_SWITCH: {
+		u32 idt_vectoring_info = to_vmx(vcpu)->idt_vectoring_info;
+
+		if (((u32)vmx_get_exit_qual(vcpu) >> 30) == TASK_SWITCH_GATE &&
+		    (idt_vectoring_info & VECTORING_INFO_VALID_MASK) &&
+		    (idt_vectoring_info & VECTORING_INFO_TYPE_MASK) == INTR_TYPE_HARD_EXCEPTION) {
+			if (idt_vectoring_info & VECTORING_INFO_DELIVER_CODE_MASK)
+				to_vmx(shared_vcpu)->error_code =
+					vmcs_read32(IDT_VECTORING_ERROR_CODE);
+		}
+
+		break;
+	}
 	default:
 		break;
 	}

@@ -31,6 +31,7 @@
 #include <linux/pgtable.h>
 #include <linux/pgsize_migration_inline.h>
 #include <linux/kasan.h>
+#include <linux/page_pinner.h>
 #include <linux/memremap.h>
 #include <linux/slab.h>
 #include <linux/cacheinfo.h>
@@ -1109,8 +1110,13 @@ static inline void folio_reset_order(struct folio *folio)
  */
 static inline int put_page_testzero(struct page *page)
 {
+	int ret;
+
 	VM_BUG_ON_PAGE(page_ref_count(page) == 0, page);
-	return page_ref_dec_and_test(page);
+	ret = page_ref_dec_and_test(page);
+	page_pinner_put_page(page);
+
+	return ret;
 }
 
 static inline int folio_put_testzero(struct folio *folio)

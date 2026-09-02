@@ -66,7 +66,12 @@ int pkvm_setup_per_cpu(int cpu, unsigned long base,
 	__per_cpu_offset[cpu] = (unsigned long)__pkvm_va(base) -
 				(unsigned long)__per_cpu_start;
 #else
-	__per_cpu_offset[cpu] = (unsigned long)__pkvm_va(base);
+	/*
+	 * In debug mode, base is a virtual address offset used by the host
+	 * kernel (which may be either direct map or vmalloc), not a physical
+	 * address.
+	 */
+	__per_cpu_offset[cpu] = (unsigned long)base;
 #endif
 	per_cpu(this_cpu_off, cpu) = __per_cpu_offset[cpu];
 	per_cpu(cpu_number, cpu) = cpu;

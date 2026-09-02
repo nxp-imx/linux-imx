@@ -74,30 +74,15 @@ static bool ex_handler_default(const struct exception_table_entry *e,
 }
 
 static bool ex_handler_msr(const struct exception_table_entry *fixup,
-			   struct pt_regs *regs, bool wrmsr, bool safe, int reg)
+			   struct pt_regs *regs, bool wrmsr, int reg)
 {
-#ifdef CONFIG_PKVM_X86_DEBUG
-	if (__ONCE_LITE_IF(!safe && wrmsr)) {
-		pkvm_err("unchecked MSR access error: WRMSR to 0x%x (tried to write 0x%08x%08x) at rIP: 0x%lx (%pS)\n",
-			(unsigned int)regs->cx, (unsigned int)regs->dx,
-			(unsigned int)regs->ax,  regs->ip, (void *)regs->ip);
-	}
-
-	if (__ONCE_LITE_IF(!safe && !wrmsr)) {
-		pkvm_err("unchecked MSR access error: RDMSR from 0x%x at rIP: 0x%lx (%pS)\n",
-			(unsigned int)regs->cx, regs->ip, (void *)regs->ip);
-	}
-#endif
-
 	if (!wrmsr) {
 		/* Pretend that the read succeeded and returned 0. */
 		regs->ax = 0;
 		regs->dx = 0;
 	}
 
-	if (safe)
-		*pt_regs_nr(regs, reg) = -EIO;
-
+	*pt_regs_nr(regs, reg) = -EIO;
 	return ex_handler_default(fixup, regs);
 }
 
@@ -118,14 +103,10 @@ static bool pkvm_fixup_exception(struct pt_regs *regs)
 	switch (type) {
 	case EX_TYPE_DEFAULT:
 		return ex_handler_default(e, regs);
-	case EX_TYPE_WRMSR:
-		return ex_handler_msr(e, regs, true, false, reg);
-	case EX_TYPE_RDMSR:
-		return ex_handler_msr(e, regs, false, false, reg);
 	case EX_TYPE_WRMSR_SAFE:
-		return ex_handler_msr(e, regs, true, true, reg);
+		return ex_handler_msr(e, regs, true, reg);
 	case EX_TYPE_RDMSR_SAFE:
-		return ex_handler_msr(e, regs, false, true, reg);
+		return ex_handler_msr(e, regs, false, reg);
 	default:
 		BUG();
 	}
@@ -138,15 +119,11 @@ static void default_exception_handler(struct pt_regs *regs,
 	void *adj_rip = (void *)(rip - kaslr_offset_val);
 
 	if (has_error_code)
-		pkvm_panic("\n========================================\n"
-			   "pKVM Exception %d @ip %pS (%px), err code 0x%lx\n"
-			   "========================================\n",
-			   vector, adj_rip, (void *)rip, regs->orig_ax);
+		panic("pKVM Exception %d @ip %pS (%px), err code 0x%lx\n",
+		      vector, adj_rip, (void *)rip, regs->orig_ax);
 	else
-		pkvm_panic("\n========================================\n"
-			   "pKVM Exception %d @ip %pS (%px), no err code\n"
-			   "========================================\n",
-			   vector, adj_rip, (void *)rip);
+		panic("pKVM Exception %d @ip %pS (%px), no err code\n",
+		      vector, adj_rip, (void *)rip);
 }
 
 static exception_handler_t exception_handlers[X86_TRAP_IRET] = {

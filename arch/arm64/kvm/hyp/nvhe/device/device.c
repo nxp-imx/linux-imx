@@ -122,7 +122,7 @@ int pkvm_device_hyp_assign_mmio(u64 pfn, u64 nr_pages)
 	ret = ___pkvm_host_donate_hyp_prot(pfn, nr_pages, true, PAGE_HYP_DEVICE);
 	/* Hyp have device mapping, while host may have issue cacheable writes.*/
 	if (!ret)
-		kvm_flush_dcache_to_poc(__hyp_va(phys), PAGE_SIZE);
+		kvm_flush_dcache_to_poc(__hyp_va(phys), size);
 
 out_unlock:
 	hyp_spin_unlock(&device_spinlock);

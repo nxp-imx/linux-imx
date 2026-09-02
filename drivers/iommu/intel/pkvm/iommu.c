@@ -170,10 +170,10 @@ static int handle_gcmd_direct(struct intel_iommu *iommu, u32 gcmd_bit, bool set)
 
 	writel(gcmd, iommu->reg + DMAR_GCMD_REG);
 	if (set) {
-		IOMMU_WAIT_OP(iommu, DMAR_GSTS_REG, readl, (sts & gcmd_bit), sts);
+		IOMMU_WAIT_OP(iommu, DMAR_GSTS_REG, dmar_readl, (sts & gcmd_bit), sts);
 		iommu->vgsts |= gcmd_bit;
 	} else {
-		IOMMU_WAIT_OP(iommu, DMAR_GSTS_REG, readl, !(sts & gcmd_bit), sts);
+		IOMMU_WAIT_OP(iommu, DMAR_GSTS_REG, dmar_readl, !(sts & gcmd_bit), sts);
 		iommu->vgsts &= ~gcmd_bit;
 	}
 

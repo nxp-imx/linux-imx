@@ -362,6 +362,17 @@ static int ieee80211_check_concurrent_iface(struct ieee80211_sub_if_data *sdata,
 				return -EBUSY;
 
 			/*
+			 * A NAN DATA interface is correlated to the NAN
+			 * (management) one
+			 */
+			if (iftype == NL80211_IFTYPE_NAN_DATA &&
+			    nsdata->vif.type == NL80211_IFTYPE_NAN) {
+				if (!nsdata->u.nan.started)
+					return -EINVAL;
+				rcu_assign_pointer(sdata->u.nan_data.nmi, nsdata);
+			}
+
+			/*
 			 * Allow only a single IBSS interface to be up at any
 			 * time. This is restricted because beacon distribution
 			 * cannot work properly if both are in the same IBSS.
@@ -475,6 +486,7 @@ static int ieee80211_open(struct net_device *dev)
 static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_down)
 {
 	struct ieee80211_local *local = sdata->local;
+	struct ieee80211_sub_if_data *iter;
 	unsigned long flags;
 	struct sk_buff_head freeq;
 	struct sk_buff *skb, *tmp;
@@ -523,12 +535,14 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
 	 * (because if we remove a STA after ops->remove_interface()
 	 * the driver will have removed the vif info already!)
 	 *
-	 * For AP_VLANs stations may exist since there's nothing else that
-	 * would have removed them, but in other modes there shouldn't
-	 * be any stations.
+	 * For AP_VLANs, NAN and NAN_DATA stations may exist since there's
+	 * nothing else that would have removed them, but in other modes there
+	 * shouldn't be any stations.
 	 */
 	flushed = sta_info_flush(sdata, -1);
-	WARN_ON_ONCE(sdata->vif.type != NL80211_IFTYPE_AP_VLAN && flushed > 0);
+	WARN_ON_ONCE(sdata->vif.type != NL80211_IFTYPE_AP_VLAN &&
+		     sdata->vif.type != NL80211_IFTYPE_NAN &&
+		     sdata->vif.type != NL80211_IFTYPE_NAN_DATA && flushed > 0);
 
 	/* don't count this interface for allmulti while it is down */
 	if (sdata->flags & IEEE80211_SDATA_ALLMULTI)
@@ -621,17 +635,30 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
 		}
 		break;
 	case NL80211_IFTYPE_NAN:
-		/* clean all the functions */
-		spin_lock_bh(&sdata->u.nan.func_lock);
-
-		idr_for_each_entry(&sdata->u.nan.function_inst_ids, func, i) {
-			idr_remove(&sdata->u.nan.function_inst_ids, i);
-			cfg80211_free_nan_func(func);
+		/* Check if any open NAN_DATA interfaces */
+		list_for_each_entry(iter, &local->interfaces, list) {
+			WARN_ON(iter->vif.type == NL80211_IFTYPE_NAN_DATA &&
+				ieee80211_sdata_running(iter));
 		}
-		idr_destroy(&sdata->u.nan.function_inst_ids);
 
-		spin_unlock_bh(&sdata->u.nan.func_lock);
+		/* clean all the functions */
+		if (!(local->hw.wiphy->nan_capa.flags &
+		      WIPHY_NAN_FLAGS_USERSPACE_DE)) {
+			spin_lock_bh(&sdata->u.nan.de.func_lock);
+
+			idr_for_each_entry(&sdata->u.nan.de.function_inst_ids,
+					   func, i) {
+				idr_remove(&sdata->u.nan.de.function_inst_ids, i);
+				cfg80211_free_nan_func(func);
+			}
+			idr_destroy(&sdata->u.nan.de.function_inst_ids);
+
+			spin_unlock_bh(&sdata->u.nan.de.func_lock);
+		}
 		break;
+	case NL80211_IFTYPE_NAN_DATA:
+		RCU_INIT_POINTER(sdata->u.nan_data.nmi, NULL);
+		fallthrough;
 	default:
 		wiphy_work_cancel(sdata->local->hw.wiphy, &sdata->work);
 		/*
@@ -681,6 +708,10 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata, bool going_do
 
 	if (sdata->vif.txq)
 		ieee80211_txq_purge(sdata->local, to_txq_info(sdata->vif.txq));
+
+	if (sdata->vif.txq_mgmt)
+		ieee80211_txq_purge(sdata->local,
+				    to_txq_info(sdata->vif.txq_mgmt));
 
 	sdata->bss = NULL;
 
@@ -877,6 +908,14 @@ static void ieee80211_teardown_sdata(struct ieee80211_sub_if_data *sdata)
 
 	ieee80211_vif_clear_links(sdata);
 	ieee80211_link_stop(&sdata->deflink);
+
+	if (sdata->vif.type == NL80211_IFTYPE_NAN) {
+		struct ieee80211_nan_sched_cfg *nan_sched =
+			&sdata->vif.cfg.nan_sched;
+
+		for (int i = 0; i < ARRAY_SIZE(nan_sched->channels); i++)
+			WARN_ON(nan_sched->channels[i].chanreq.oper.chan);
+	}
 }
 
 static void ieee80211_uninit(struct net_device *dev)
@@ -1338,8 +1377,11 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 	case NL80211_IFTYPE_OCB:
 	case NL80211_IFTYPE_NAN:
 	case NL80211_IFTYPE_PD:
-	case NL80211_IFTYPE_NAN_DATA:
 		/* no special treatment */
+		break;
+	case NL80211_IFTYPE_NAN_DATA:
+		if (WARN_ON(!rcu_access_pointer(sdata->u.nan_data.nmi)))
+			return -ENOLINK;
 		break;
 	case NL80211_IFTYPE_UNSPECIFIED:
 	case NUM_NL80211_IFTYPES:
@@ -1469,6 +1511,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_MESH_POINT:
 		case NL80211_IFTYPE_OCB:
+		case NL80211_IFTYPE_NAN_DATA:
 			netif_carrier_off(dev);
 			break;
 		case NL80211_IFTYPE_P2P_DEVICE:
@@ -1518,6 +1561,8 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		drv_stop(local, false);
  err_del_bss:
 	sdata->bss = NULL;
+	if (sdata->vif.type == NL80211_IFTYPE_NAN_DATA)
+		RCU_INIT_POINTER(sdata->u.nan_data.nmi, NULL);
 	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
 		list_del(&sdata->u.vlan.list);
 	/* might already be clear but that doesn't matter */
@@ -1891,8 +1936,11 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 				      MONITOR_FLAG_OTHER_BSS;
 		break;
 	case NL80211_IFTYPE_NAN:
-		idr_init(&sdata->u.nan.function_inst_ids);
-		spin_lock_init(&sdata->u.nan.func_lock);
+		if (!(sdata->local->hw.wiphy->nan_capa.flags &
+		      WIPHY_NAN_FLAGS_USERSPACE_DE)) {
+			idr_init(&sdata->u.nan.de.function_inst_ids);
+			spin_lock_init(&sdata->u.nan.de.func_lock);
+		}
 		sdata->vif.bss_conf.bssid = sdata->vif.addr;
 		break;
 	case NL80211_IFTYPE_AP_VLAN:
@@ -2177,19 +2225,40 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 	lockdep_assert_wiphy(local->hw.wiphy);
 
 	if (type == NL80211_IFTYPE_P2P_DEVICE || type == NL80211_IFTYPE_NAN) {
+		int size = ALIGN(sizeof(*sdata) + local->hw.vif_data_size,
+				 sizeof(void *));
 		struct wireless_dev *wdev;
+		int txq_size = 0;
 
-		sdata = kzalloc(sizeof(*sdata) + local->hw.vif_data_size,
-				GFP_KERNEL);
+		if (type == NL80211_IFTYPE_NAN)
+			txq_size = sizeof(struct txq_info) +
+				   local->hw.txq_data_size;
+
+		sdata = kzalloc(size + txq_size, GFP_KERNEL);
 		if (!sdata)
 			return -ENOMEM;
 		wdev = &sdata->wdev;
 
 		sdata->dev = NULL;
 		strscpy(sdata->name, name, IFNAMSIZ);
-		ieee80211_assign_perm_addr(local, wdev->address, type);
+
+		if (is_valid_ether_addr(params->macaddr))
+			memcpy(wdev->address, params->macaddr, ETH_ALEN);
+		else
+			ieee80211_assign_perm_addr(local, wdev->address, type);
+
 		memcpy(sdata->vif.addr, wdev->address, ETH_ALEN);
 		ether_addr_copy(sdata->vif.bss_conf.addr, sdata->vif.addr);
+
+		/*
+		 * Add a management TXQ for NAN devices which includes frames
+		 * that will only be transmitted during discovery windows (DWs)
+		 */
+		if (type == NL80211_IFTYPE_NAN) {
+			txqi = (struct txq_info *)((unsigned long)sdata + size);
+			ieee80211_txq_init(sdata, NULL, txqi,
+					   IEEE80211_NUM_TIDS);
+		}
 	} else {
 		int size = ALIGN(sizeof(*sdata) + local->hw.vif_data_size,
 				 sizeof(void *));
@@ -2339,6 +2408,10 @@ void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata)
 
 	if (sdata->vif.txq)
 		ieee80211_txq_purge(sdata->local, to_txq_info(sdata->vif.txq));
+
+	if (sdata->vif.txq_mgmt)
+		ieee80211_txq_purge(sdata->local,
+				    to_txq_info(sdata->vif.txq_mgmt));
 
 	synchronize_rcu();
 

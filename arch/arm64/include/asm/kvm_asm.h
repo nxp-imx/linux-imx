@@ -259,7 +259,6 @@ struct kvm_nvhe_init_params {
 	unsigned long hfgwtr_el2;
 	unsigned long vttbr;
 	unsigned long vtcr;
-	unsigned long tmp;
 };
 
 /*

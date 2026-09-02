@@ -56,6 +56,13 @@ int pkvm_init_percpu_fpu(void)
 
 	fpu->guest_perm = fpu->perm;
 
+	/*
+	 * As this function is used during pKVM initialization, there is no
+	 * guest FPU state on hardware yet, thus set TIF_NEED_FPU_LOAD to
+	 * indicate this.
+	 */
+	set_thread_flag(TIF_NEED_FPU_LOAD);
+
 	return 0;
 }
 

@@ -2071,6 +2071,7 @@
   kthread_flush_worker
   of_alias_get_highest_id
   of_find_node_by_phandle
+  of_get_next_child_with_prefix
   phy_configure
   phy_reset
   pinctrl_pm_select_default_state

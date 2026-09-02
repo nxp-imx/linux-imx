@@ -348,8 +348,8 @@ struct binder_ref {
 
 /**
  * struct binder_priority - scheduler policy and priority
- * @sched_policy            scheduler policy
- * @prio                    [100..139] for SCHED_NORMAL, [0..99] for FIFO/RT
+ * @sched_policy:           scheduler policy
+ * @prio:                   [100..139] for SCHED_NORMAL, [0..99] for FIFO/RT
  *
  * The binder driver supports inheriting the following scheduler policies:
  * SCHED_NORMAL

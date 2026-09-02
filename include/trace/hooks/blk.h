@@ -20,6 +20,10 @@ DECLARE_HOOK(android_vh_check_set_ioprio,
 	TP_PROTO(struct bio *bio),
 	TP_ARGS(bio));
 
+DECLARE_HOOK(android_vh_set_ioprio,
+	TP_PROTO(struct bio *bio),
+	TP_ARGS(bio));
+
 struct path;
 struct vfsmount;
 

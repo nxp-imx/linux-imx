@@ -1819,7 +1819,7 @@ int dmar_enable_qi(struct intel_iommu *iommu)
 	if (iommu->qi)
 		return 0;
 
-	iommu->qi = kmalloc(sizeof(*qi), GFP_ATOMIC);
+	iommu->qi = kzalloc(sizeof(*qi), GFP_ATOMIC);
 	if (!iommu->qi)
 		return -ENOMEM;
 

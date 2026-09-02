@@ -2255,7 +2255,9 @@ void __mem_cgroup_handle_over_high(gfp_t gfp_mask)
 	int nr_retries = MAX_RECLAIM_RETRIES;
 	struct mem_cgroup *memcg;
 	bool in_retry = false;
-	bool record_psi = true;
+	bool record_psi = false;
+	bool skip_reclaim = false;
+	bool force_sleep = false;
 
 	memcg = get_mem_cgroup_from_mm(current->mm);
 	current->memcg_nr_pages_over_high = 0;
@@ -2272,6 +2274,12 @@ retry_reclaim:
 	if (task_is_dying())
 		goto out;
 
+	trace_android_vh_mem_cgroup_over_high_reclaim(
+		memcg, nr_pages, in_retry, &nr_reclaimed, &skip_reclaim);
+
+	if (skip_reclaim)
+		goto do_penalty;
+
 	/*
 	 * The allocating task should reclaim at least the batch size, but for
 	 * subsequent retries we only want to do what's necessary to prevent oom
@@ -2285,6 +2293,7 @@ retry_reclaim:
 				    in_retry ? SWAP_CLUSTER_MAX : nr_pages,
 				    gfp_mask);
 
+do_penalty:
 	/*
 	 * memory.high is breached and reclaim is unable to keep up. Throttle
 	 * allocators proactively to slow down excessive growth.
@@ -2301,6 +2310,12 @@ retry_reclaim:
 	 * extremely slowly.
 	 */
 	penalty_jiffies = min(penalty_jiffies, MEMCG_MAX_HIGH_DELAY_JIFFIES);
+
+	trace_android_vh_mem_cgroup_over_high_penalty(
+		memcg, nr_pages, &penalty_jiffies, &force_sleep);
+
+	if (force_sleep)
+		goto do_sleep;
 
 	/*
 	 * Don't sleep if the amount of jiffies this memcg owes us is so low
@@ -2321,6 +2336,7 @@ retry_reclaim:
 		goto retry_reclaim;
 	}
 
+do_sleep:
 	/*
 	 * Reclaim didn't manage to push usage below the limit, slow
 	 * this allocating task down.

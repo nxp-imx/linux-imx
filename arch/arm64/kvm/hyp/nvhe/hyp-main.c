@@ -1255,7 +1255,7 @@ static void handle___pkvm_host_split_guest(struct kvm_cpu_context *host_ctxt)
 	ret = __pkvm_host_split_guest(gfn, size, hyp_vcpu);
 
 out:
-	cpu_reg(host_ctxt, 1) = ret;
+	errno_to_smccc(ret, host_ctxt);
 }
 
 static void handle___kvm_adjust_pc(struct kvm_cpu_context *host_ctxt)
@@ -1637,7 +1637,7 @@ static void handle___pkvm_sync_ftrace(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(unsigned long, host_func_pg, host_ctxt, 1);
 
-	cpu_reg(host_ctxt, 1) = __pkvm_sync_ftrace(host_func_pg);
+	errno_to_smccc(__pkvm_sync_ftrace(host_func_pg), host_ctxt);
 }
 
 static void handle___pkvm_disable_ftrace(struct kvm_cpu_context *host_ctxt)
@@ -2001,7 +2001,7 @@ static void handle___pkvm_host_map_guest_mmio(struct kvm_cpu_context *host_ctxt)
 	ret = pkvm_host_map_guest_mmio(hyp_vcpu, pfn, gfn);
 
 out:
-	cpu_reg(host_ctxt, 1) = ret;
+	errno_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_pviommu_attach(struct kvm_cpu_context *host_ctxt)

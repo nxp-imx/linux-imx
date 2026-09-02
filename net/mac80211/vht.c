@@ -4,7 +4,7 @@
  *
  * Portions of this file
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
- * Copyright (C) 2018 - 2024 Intel Corporation
+ * Copyright (C) 2018 - 2026 Intel Corporation
  */
 
 #include <linux/ieee80211.h>
@@ -115,6 +115,7 @@ void ieee80211_apply_vhtcap_overrides(struct ieee80211_sub_if_data *sdata,
 void
 ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 				    struct ieee80211_supported_band *sband,
+				    const struct ieee80211_sta_vht_cap *own_vht_cap,
 				    const struct ieee80211_vht_cap *vht_cap_ie,
 				    const struct ieee80211_vht_cap *vht_cap_ie2,
 				    struct link_sta_info *link_sta)
@@ -122,7 +123,6 @@ ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_sta_vht_cap *vht_cap = &link_sta->pub->vht_cap;
 	struct ieee80211_sta_vht_cap own_cap;
 	u32 cap_info, i;
-	bool have_80mhz;
 	u32 mpdu_len;
 
 	memset(vht_cap, 0, sizeof(*vht_cap));
@@ -130,22 +130,29 @@ ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 	if (!link_sta->pub->ht_cap.ht_supported)
 		return;
 
-	if (!vht_cap_ie || !sband->vht_cap.vht_supported)
+	if (!vht_cap_ie || !own_vht_cap->vht_supported)
 		return;
 
-	/* Allow VHT if at least one channel on the sband supports 80 MHz */
-	have_80mhz = false;
-	for (i = 0; i < sband->n_channels; i++) {
-		if (sband->channels[i].flags & (IEEE80211_CHAN_DISABLED |
-						IEEE80211_CHAN_NO_80MHZ))
-			continue;
+	/* NDI station are using the capabilities from the NMI station */
+	if (WARN_ON_ONCE(sdata->vif.type == NL80211_IFTYPE_NAN_DATA))
+		return;
 
-		have_80mhz = true;
-		break;
+	if (sband) {
+		/* Allow VHT if at least one channel on the sband supports 80 MHz */
+		bool have_80mhz = false;
+
+		for (i = 0; i < sband->n_channels; i++) {
+			if (sband->channels[i].flags & (IEEE80211_CHAN_DISABLED |
+							IEEE80211_CHAN_NO_80MHZ))
+				continue;
+
+			have_80mhz = true;
+			break;
+		}
+
+		if (!have_80mhz)
+			return;
 	}
-
-	if (!have_80mhz)
-		return;
 
 	/*
 	 * A VHT STA must support 40 MHz, but if we verify that here
@@ -156,7 +163,7 @@ ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 
 	vht_cap->vht_supported = true;
 
-	own_cap = sband->vht_cap;
+	own_cap = *own_vht_cap;
 	/*
 	 * If user has specified capability overrides, take care
 	 * of that if the station we're setting up is the AP that
@@ -370,6 +377,10 @@ __ieee80211_sta_cap_rx_bw(struct link_sta_info *link_sta,
 		} else {
 			struct ieee80211_bss_conf *link_conf;
 
+			if (WARN_ON_ONCE(sdata->vif.type == NL80211_IFTYPE_NAN_DATA ||
+					 sdata->vif.type == NL80211_IFTYPE_NAN))
+				return IEEE80211_STA_RX_BW_20;
+
 			rcu_read_lock();
 			link_conf = rcu_dereference(sdata->vif.link_conf[link_id]);
 			band = link_conf->chanreq.oper.chan->band;
@@ -514,6 +525,11 @@ _ieee80211_sta_cur_vht_bw(struct link_sta_info *link_sta,
 		bss_width = chandef->width;
 	} else {
 		struct ieee80211_bss_conf *link_conf;
+
+		/* NAN operates on multiple channels so a chandef must be given */
+		if (sta->sdata->vif.type == NL80211_IFTYPE_NAN ||
+		    sta->sdata->vif.type == NL80211_IFTYPE_NAN_DATA)
+			return IEEE80211_STA_RX_BW_MAX;
 
 		rcu_read_lock();
 		link_conf = rcu_dereference(sta->sdata->vif.link_conf[link_sta->link_id]);

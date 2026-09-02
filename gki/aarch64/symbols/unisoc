@@ -1219,6 +1219,7 @@
   __traceiter_android_vh_sched_show_task
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_scx_enabled
+  __traceiter_android_vh_set_ioprio
   __traceiter_android_vh_setscheduler_uclamp
   __traceiter_android_vh_should_alloc_pages_retry
   __traceiter_android_vh_shrink_slab_bypass
@@ -1393,6 +1394,7 @@
   __tracepoint_android_vh_sched_show_task
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_scx_enabled
+  __tracepoint_android_vh_set_ioprio
   __tracepoint_android_vh_setscheduler_uclamp
   __tracepoint_android_vh_should_alloc_pages_retry
   __tracepoint_android_vh_shrink_slab_bypass

@@ -55,6 +55,8 @@ DEFINE_ASM_FUNC(pv_native_read_cr2, "mov %cr2, %rax", .noinstr.text);
 
 DEFINE_STATIC_KEY_FALSE(virt_spin_lock_key);
 
+DEFINE_STATIC_KEY_FALSE(pv_mmio);
+
 void __init native_pv_lock_init(void)
 {
 	if (boot_cpu_has(X86_FEATURE_HYPERVISOR))
@@ -277,4 +279,5 @@ NOKPROBE_SYMBOL(native_load_idt);
 #endif
 
 EXPORT_SYMBOL(pv_ops);
+EXPORT_SYMBOL(pv_mmio);
 EXPORT_SYMBOL_GPL(pv_info);

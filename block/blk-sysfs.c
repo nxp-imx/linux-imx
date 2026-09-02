@@ -94,6 +94,15 @@ queue_requests_store(struct gendisk *disk, const char *page, size_t count)
 		nr = BLKDEV_MIN_RQ;
 
 	/*
+	 * Restrict the queue depth if ZWOR is supported and an I/O
+	 * scheduler has been configured to prevent deadlocks.
+	 */
+	if (blk_use_zwor(q) && q->elevator && nr > set->queue_depth) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	/*
 	 * Switching elevator is protected by update_nr_hwq_lock:
 	 *  - read lock is held from elevator sysfs attribute;
 	 *  - write lock is held from updating nr_hw_queues;

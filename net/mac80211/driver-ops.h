@@ -1772,4 +1772,24 @@ drv_prep_add_interface(struct ieee80211_local *local,
 	trace_drv_return_void(local);
 }
 
+static inline int
+drv_nan_peer_sched_changed(struct ieee80211_local *local,
+			   struct ieee80211_sub_if_data *sdata,
+			   struct sta_info *sta)
+{
+	int ret;
+
+	might_sleep();
+	lockdep_assert_wiphy(local->hw.wiphy);
+	check_sdata_in_driver(sdata);
+
+	if (!local->ops->nan_peer_sched_changed)
+		return -EOPNOTSUPP;
+
+	trace_drv_nan_peer_sched_changed(local, sdata, &sta->sta);
+	ret = local->ops->nan_peer_sched_changed(&local->hw, &sta->sta);
+	trace_drv_return_int(local, ret);
+
+	return ret;
+}
 #endif /* __MAC80211_DRIVER_OPS */

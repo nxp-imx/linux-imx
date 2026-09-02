@@ -19,3 +19,7 @@ type 'struct task_struct' changed
   member 'u64 __kabi_reserved1' was removed
   member 'union { struct { unsigned int user_dumpable:1; }; struct { u64 __kabi_reserved1; }; union { }; }' was added
 
+type 'struct fscrypt_operations' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { unsigned int(* get_devices_new)(struct super_block*, struct block_device**); struct { u64 __kabi_reserved1; }; union { }; }' was added
+

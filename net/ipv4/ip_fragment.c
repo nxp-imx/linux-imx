@@ -50,6 +50,9 @@
 #include <linux/netfilter_ipv4.h>
 #include <net/inet_ecn.h>
 #include <net/l3mdev.h>
+#include <linux/android_kabi.h>
+#include <trace/hooks/net.h>
+ANDROID_KABI_DECLONLY(trace_eval_map);
 
 /* NOTE. Logic of IP defragmentation is parallel to corresponding IPv6
  * code now. If you change something here, _PLEASE_ update ipv6/reassembly.c
@@ -305,6 +308,8 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb, int *refs)
 			goto discard_qp;
 		qp->q.flags |= INET_FRAG_LAST_IN;
 		qp->q.len = end;
+
+		trace_android_vh_reasm_timer_adjust(&qp->q, skb);
 	} else {
 		if (end&7) {
 			end &= ~7;
