@@ -172,6 +172,7 @@ struct imx_pcie {
 	struct clk_bulk_data	*clks;
 	int			host_wake_irq;
 	int			num_clks;
+	bool			clks_on;
 	bool			enable_ext_refclk;
 	bool			pll_locked;
 	bool			supports_clkreq;
@@ -830,6 +831,7 @@ static int imx_pcie_clk_enable(struct imx_pcie *imx_pcie)
 
 	/* allow the clocks to stabilize */
 	usleep_range(200, 500);
+	imx_pcie->clks_on = true;
 	return 0;
 
 err_ref_clk:
@@ -840,9 +842,13 @@ err_ref_clk:
 
 static void imx_pcie_clk_disable(struct imx_pcie *imx_pcie)
 {
+	if (!imx_pcie->clks_on)
+		return;
+
 	if (imx_pcie->drvdata->enable_ref_clk)
 		imx_pcie->drvdata->enable_ref_clk(imx_pcie, false);
 	clk_bulk_disable_unprepare(imx_pcie->num_clks, imx_pcie->clks);
+	imx_pcie->clks_on = false;
 }
 
 static int imx6sx_pcie_core_reset(struct imx_pcie *imx_pcie, bool assert)
