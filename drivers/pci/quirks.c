@@ -567,6 +567,18 @@ static void quirk_citrine(struct pci_dev *dev)
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_IBM,	PCI_DEVICE_ID_IBM_CITRINE,	quirk_citrine);
 
 /*
+ * The ARA240 device reports a byte-swapped class code (0x000012) instead of
+ * the correct value (0x120000 - Processing Accelerator). This causes resource
+ * assignment issues on ARM platforms. Apply a quirk to force the correct
+ * class code.
+ */
+static void quirk_ara240_class_code(struct pci_dev *dev)
+{
+	dev->class = 0x120000;
+}
+DECLARE_PCI_FIXUP_HEADER(0x1e58, 0x0002, quirk_ara240_class_code);
+
+/*
  * This chip can cause bus lockups if config addresses above 0x600
  * are read or written.
  */
