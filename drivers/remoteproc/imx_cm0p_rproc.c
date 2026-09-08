@@ -494,15 +494,21 @@ static int imx_cm0p_rproc_probe(struct platform_device *pdev)
 	cm0p_rproc->trusty_dev = NULL;
 	if (of_find_property(dev->of_node, "trusty", NULL)) {
 		trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (trusty_dev != NULL) {
-			if (!trusty_fast_call32(trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
-				cm0p_rproc->trusty_dev = trusty_dev;
-				dev_info(&pdev->dev, "cm0p: get trusty_dev node, use Trusty mode.\n");
-			} else {
-				dev_err(&pdev->dev, "cm0p: failed to get response of echo. Use normal mode.\n");
-			}
+		if (!trusty_dev || !trusty_dev->driver ||
+		    !dev_get_drvdata(trusty_dev)) {
+			if (trusty_dev)
+				put_device(trusty_dev);
+			dev_dbg(&pdev->dev, "cm0p: trusty is not ready, defer probe.\n");
+			ret = -EPROBE_DEFER;
+			goto err_rproc;
+		}
+
+		if (!trusty_fast_call32(trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
+			cm0p_rproc->trusty_dev = trusty_dev;
+			dev_info(&pdev->dev, "cm0p: get trusty_dev node, use Trusty mode.\n");
 		} else {
-			dev_err(&pdev->dev, "cm0p: failed to find trusty node. Use normal mode.\n");
+			put_device(trusty_dev);
+			dev_err(&pdev->dev, "cm0p: failed to get response of echo. Use normal mode.\n");
 		}
 	}
 
