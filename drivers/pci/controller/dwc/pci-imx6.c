@@ -1699,21 +1699,36 @@ static int imx_pcie_resume_noirq(struct device *dev)
 		/*
 		 * PLL lock might be failed on i.MX95 and i.MX94 randomly in
 		 * corner case, re-initialized it to workaround this issue.
+		 * Only retry on a genuine PLL-lock failure (link timed out and
+		 * the PLL did not lock), not on a plain link-down timeout.
 		 */
 		if ((imx_pcie->drvdata->variant == IMX95) &&
+		    (ret == -ETIMEDOUT) &&
 		    (imx_pcie->pll_locked == false)) {
 			imx_pcie->pci->suspended = true;
 			ret = dw_pcie_resume_noirq(imx_pcie->pci);
 		}
 
 		/*
-		 * Ignore link timeout during resume. The device might not be
-		 * present or the link may come up later. This prevents resume
-		 * failure when PCIe device is optional or slow to initialize.
+		 * A link timeout is expected when no endpoint is present. On a
+		 * base kernel whose dw_pcie_resume_noirq() tears the controller
+		 * down (clocks and PHY off) on timeout, the PCI core will then
+		 * resume the child root port and read its config space
+		 * (pci_power_up -> readw into the DBI window). With the
+		 * controller powered down that access takes an external abort
+		 * and panics. Re-run the controller bring-up (clocks + PHY on,
+		 * reset deasserted, RC set up) so the root port config space is
+		 * accessible again; this does not require a trained link.
 		 */
 		if (ret == -ETIMEDOUT) {
-			dev_info(dev, "PCIe link timeout during resume, continuing anyway\n");
-			ret = 0;
+			ret = imx_pcie->pci->pp.ops->init(&imx_pcie->pci->pp);
+			if (ret) {
+				dev_err(dev, "failed to re-init PCIe after link timeout: %d\n",
+					ret);
+				return ret;
+			}
+			imx_pcie->pci->suspended = false;
+			dev_info(dev, "PCIe link down during resume, controller kept powered for config access\n");
 		} else if (ret) {
 			return ret;
 		}
