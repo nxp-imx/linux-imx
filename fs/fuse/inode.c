@@ -574,16 +574,15 @@ struct inode *fuse_iget_backing(struct super_block *sb, u64 nodeid,
 	if (!inode)
 		return NULL;
 
+	fi = get_fuse_inode(inode);
 	if ((inode->i_state & I_NEW)) {
 		inode->i_flags |= S_NOATIME;
 		if (!fc->writeback_cache)
 			inode->i_flags |= S_NOCMTIME;
-		fuse_init_common(inode);
+		fuse_init_inode(inode, &attr, fc);
 		unlock_new_inode(inode);
 	}
 
-	fi = get_fuse_inode(inode);
-	fuse_init_inode(inode, &attr, fc);
 	spin_lock(&fi->lock);
 	fi->nlookup++;
 	spin_unlock(&fi->lock);
