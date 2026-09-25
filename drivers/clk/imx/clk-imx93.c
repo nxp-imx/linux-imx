@@ -406,7 +406,9 @@ unregister_hws:
 
 static const struct of_device_id imx93_clk_of_match[] = {
 	{ .compatible = "fsl,imx93-ccm", .data = (void *)PLAT_IMX93 },
-	{ .compatible = "fsl,imx91-ccm", .data = (void *)PLAT_IMX91 },
+	/* fsl,imx91-ccm intentionally not matched here anymore: reverted to
+	 * the dedicated clk-imx91.c driver (backported from lf-6.12.y) to
+	 * work around the imx91/imx93 driver-unification regression. */
 	{ /* Sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, imx93_clk_of_match);

@@ -398,7 +398,7 @@
 			};
 
 			clock-controller@44480000 {
-				compatible = "fsl,imx93-anatop";
+				compatible = "fsl,imx91-anatop", "fsl,imx93-anatop";
 				reg = <0x44480000 0x2000>;
 				#clock-cells = <1>;
 			};
